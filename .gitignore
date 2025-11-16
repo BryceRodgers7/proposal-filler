@@ -133,6 +133,5 @@ dmypy.json
 # data
 *.csv
 *.docx
-*.txt
 *.pdf
 *.db
