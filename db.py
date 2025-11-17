@@ -3,15 +3,20 @@ Database models and initialization for the proposal filler application.
 This file defines the database schema and provides database connection utilities.
 """
 import os
+import streamlit as st
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Integer, Text, DateTime, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+DB_URL = st.secrets["DATABASE_URL"]  # Supabase Postgres URL
+
+engine = create_engine(DB_URL, echo=False, future=True)
+
 # Database URL - can be easily changed to cloud database later
-DB_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
+# DB_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
 
 # Create engine
-engine = create_engine(DB_URL, connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {})
+# engine = create_engine(DB_URL, connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {})
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
