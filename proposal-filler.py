@@ -11,7 +11,28 @@ from docx import Document
 from db import init_db, SessionLocal, ProposalSubmission, get_db
 from datetime import datetime
 from storage import upload_file_to_s3, is_s3_available, get_s3_url
+import traceback
 
+
+def is_streamlit_cloud():
+    """
+    Check if the app is running on Streamlit Community Cloud.
+    
+    Returns:
+        True if running on Streamlit Cloud, False otherwise
+    """
+    # Streamlit Community Cloud sets STREAMLIT_SHARING_MODE to "SHARED"
+    if os.environ.get("STREAMLIT_SHARING_MODE") == "SHARED":
+        return True
+    # Alternative check: check if running on streamlit.app domain
+    try:
+        import socket
+        hostname = socket.gethostname()
+        if "streamlit.app" in hostname or "streamlit.io" in hostname:
+            return True
+    except:
+        pass
+    return False
 
 
 # Initialize database
@@ -310,18 +331,27 @@ if uploaded_file is not None:
         
         # Try to upload file to S3 (if available)
         s3_path = None
+        s3_upload_success = False
         if _s3_available:
             try:
-                file_data = uploaded_file.getbuffer()
+                # Read file data as bytes (getbuffer() returns memoryview, need to convert to bytes)
+                file_buffer = uploaded_file.getbuffer()
+                file_data = bytes(file_buffer)
                 content_type = uploaded_file.type
                 s3_path = upload_file_to_s3(file_data, s3_key, content_type)
                 if s3_path:
                     print(f"✅ File uploaded to S3: {s3_path}")
+                    s3_upload_success = True
+                    st.success(f"✅ File successfully uploaded to S3: {uploaded_file.name}")
                 else:
                     print(f"⚠️ Warning: Could not upload file to S3")
+                    st.warning("⚠️ Could not upload file to S3. File will be stored in memory only.")
             except Exception as e:
                 print(f"⚠️ Warning: Error uploading file to S3: {str(e)}")
+                st.error(f"⚠️ Error uploading file to S3: {str(e)}")
                 s3_path = None
+        else:
+            st.info("ℹ️ S3 storage is not available. File will be stored in memory only.")
         
         # Store file info in session state
         st.session_state.uploaded_file_info = {
@@ -474,7 +504,14 @@ with col1:
                 st.session_state.last_saved_id = submission.id
                 
             except Exception as e:
-                st.error(f"Error saving to database: {str(e)}")
+                # Show full error details if running on Streamlit Cloud
+                if is_streamlit_cloud():
+                    st.error(f"❌ Error saving to database: {str(e)}")
+                    with st.expander("🔍 Full Error Details (Click to expand)", expanded=True):
+                        st.code(traceback.format_exc(), language="python")
+                else:
+                    # Show simplified error message when running locally
+                    st.error(f"Error saving to database: {str(e)}")
                 db.rollback()
             finally:
                 db.close()
