@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from docx import Document  
 from db import init_db, SessionLocal, ProposalSubmission, get_db
 from datetime import datetime
+from storage import upload_file_to_s3, is_s3_available, get_s3_url
 
 
 
@@ -23,16 +24,11 @@ except Exception as e:
     print(f"⚠️ Database initialization warning: {str(e)}")
     print("The app will continue to run, but database features may not work.")
 
-# Create uploads directory
-UPLOAD_DIR = "uploads"
-_file_saving_enabled = True
-try:
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-except Exception as e:
-    # Log error but don't crash the app
-    print(f"⚠️ File saving initialization warning: {str(e)}")
-    print("The app will continue to run, but uploaded files may not be saved to disk.")
-    _file_saving_enabled = False
+# Initialize S3 storage
+_s3_available = is_s3_available()
+if not _s3_available:
+    print("⚠️ S3 storage is not available. Please check your AWS credentials in secrets.toml")
+    print("The app will continue to run, but uploaded files may not be saved to S3.")
 
 
 def get_api_key():
@@ -310,24 +306,27 @@ if uploaded_file is not None:
         st.session_state.uploaded_file_info.get("original_name") != current_file_name):
         file_id = str(uuid.uuid4())
         file_extension = os.path.splitext(uploaded_file.name)[1]
-        file_name = f"{file_id}{file_extension}"
-        file_path = os.path.join(UPLOAD_DIR, file_name) if _file_saving_enabled else None
+        s3_key = f"uploads/{file_id}{file_extension}"
         
-        # Try to save file to disk (if enabled)
-        if _file_saving_enabled:
+        # Try to upload file to S3 (if available)
+        s3_path = None
+        if _s3_available:
             try:
-                with open(file_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                file_data = uploaded_file.getbuffer()
+                content_type = uploaded_file.type
+                s3_path = upload_file_to_s3(file_data, s3_key, content_type)
+                if s3_path:
+                    print(f"✅ File uploaded to S3: {s3_path}")
+                else:
+                    print(f"⚠️ Warning: Could not upload file to S3")
             except Exception as e:
-                print(f"⚠️ Warning: Could not save file to disk: {str(e)}")
-                # Continue without saving to disk - file is still in memory
-                file_path = None
-                _file_saving_enabled = False
+                print(f"⚠️ Warning: Error uploading file to S3: {str(e)}")
+                s3_path = None
         
         # Store file info in session state
         st.session_state.uploaded_file_info = {
             "original_name": uploaded_file.name,
-            "saved_path": file_path or f"in_memory:{file_id}",  # Mark as in-memory if not saved
+            "saved_path": s3_path or f"in_memory:{file_id}",  # S3 key or in-memory marker
             "file_type": uploaded_file.type or file_extension[1:].lower(),
             "file_id": file_id
         }
@@ -436,16 +435,22 @@ with col1:
             try:
                 db = next(get_db())
                 
-                # Get file path - use saved path or mark as in-memory
+                # Get file path - use S3 key or in-memory marker
                 file_path = st.session_state.uploaded_file_info["saved_path"]
-                if file_path and file_path.startswith("in_memory:"):
-                    # File wasn't saved to disk, store reference
+                
+                # If it's an S3 path, we can optionally store the full URL
+                # For now, we'll store the S3 key (path) which can be used to construct the URL later
+                if file_path and not file_path.startswith("in_memory:"):
+                    # It's an S3 key, store it as is
+                    pass
+                else:
+                    # File wasn't saved to S3, store reference
                     file_path = file_path
                 
                 # Create new submission record
                 submission = ProposalSubmission(
                     file_name=st.session_state.uploaded_file_info["original_name"],
-                    file_path=file_path,
+                    file_path=file_path,  # This will be the S3 key or in_memory marker
                     file_type=st.session_state.uploaded_file_info["file_type"],
                     full_organization_name=fd.get("full_organization_name", ""),
                     legal_designation=fd.get("legal_designation", ""),

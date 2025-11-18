@@ -12,12 +12,6 @@ DB_URL = st.secrets["DATABASE_URL"]  # Supabase Postgres URL
 
 engine = create_engine(DB_URL, echo=False, future=True)
 
-# Database URL - can be easily changed to cloud database later
-# DB_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
-
-# Create engine
-# engine = create_engine(DB_URL, connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {})
-
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -35,27 +29,27 @@ class ProposalSubmission(Base):
     # File information
     file_name = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)  # Local path or S3 key
-    file_type = Column(String(50), nullable=False)  # pdf, docx, txt
+    file_type = Column(Text, nullable=False)  # MIME type can be long (e.g., application/vnd.openxmlformats-officedocument.wordprocessingml.document)
     
     # Extracted/Form fields
     full_organization_name = Column(String(255), nullable=True)
     legal_designation = Column(String(255), nullable=True)
     mission_statement = Column(Text, nullable=True)
-    ein = Column(String(50), nullable=True)
+    ein = Column(String(100), nullable=True)  # Increased from 50 to handle formatted EINs
     year_founded = Column(String(10), nullable=True)
     location_served = Column(String(255), nullable=True)
     biggest_accomplishment = Column(Text, nullable=True)
     what_we_do_in_one_sentence = Column(Text, nullable=True)
     primary_cause_area = Column(JSON, nullable=True)  # List of strings
     populations = Column(JSON, nullable=True)  # List of strings
-    geographic_focus = Column(String(100), nullable=True)
+    geographic_focus = Column(String(255), nullable=True)  # Increased from 100 to 255
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
-    # Store raw extracted text for reference
-    extracted_text = Column(Text, nullable=True)
+    # Store raw extracted text for reference (can handle 10,000+ characters, not indexed)
+    extracted_text = Column(Text, nullable=True, index=False)
 
 
 def init_db():
