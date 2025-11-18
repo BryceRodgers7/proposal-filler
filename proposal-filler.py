@@ -14,6 +14,7 @@ from storage import upload_file_to_s3, is_s3_available, get_s3_url
 import traceback
 from sidebar import render_sidebar
 from tinderish import render_tinderish
+from profilebrowser import render_profile_browser
 
 
 def is_streamlit_cloud():
@@ -539,5 +540,7 @@ current_page = render_sidebar()
 # ----- PAGE ROUTING -----
 if current_page == "tinderish":
     render_tinderish()
+elif current_page == "profilebrowser":
+    render_profile_browser()
 else:
     render_home_page()
