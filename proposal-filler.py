@@ -537,7 +537,7 @@ def render_home_page():
 current_page = render_sidebar()
 
 # ----- PAGE ROUTING -----
-if current_page == "page2":
-    render_page2()
+if current_page == "tinderish":
+    render_tinderish()
 else:
     render_home_page()
