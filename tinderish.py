@@ -1,6 +1,7 @@
 import streamlit as st
-from db import get_db, ProposalSubmission
+from db import get_db, ProposalSubmission, ProposalAction
 import html
+import uuid
 
 
 def render_tinderish():
@@ -13,6 +14,10 @@ def render_tinderish():
     # Initialize session state for deck navigation
     if "deck_index" not in st.session_state:
         st.session_state.deck_index = 0
+    
+    # Initialize session ID for tracking actions
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = str(uuid.uuid4())
     
     # Fetch all proposals from database
     try:
@@ -78,12 +83,74 @@ def render_tinderish():
         
         with button_col1:
             if st.button("❌ Pass", type="secondary", use_container_width=True):
+                # Save or update pass action in database
+                db = None
+                try:
+                    db = next(get_db())
+                    # Check if action already exists for this proposal and session
+                    existing_action = db.query(ProposalAction).filter(
+                        ProposalAction.proposal_id == current_proposal.id,
+                        ProposalAction.session_id == st.session_state.session_id
+                    ).first()
+                    
+                    if existing_action:
+                        # Update existing action
+                        existing_action.action_type = "pass"
+                    else:
+                        # Create new action
+                        action = ProposalAction(
+                            proposal_id=current_proposal.id,
+                            action_type="pass",
+                            session_id=st.session_state.session_id
+                        )
+                        db.add(action)
+                    db.commit()
+                except Exception as e:
+                    if db:
+                        db.rollback()
+                    st.error(f"Error saving pass: {str(e)}")
+                    # Continue even if save fails
+                finally:
+                    if db:
+                        db.close()
+                
                 # Move to next profile
                 st.session_state.deck_index = (st.session_state.deck_index + 1) % len(proposals)
                 st.rerun()
         
         with button_col2:
             if st.button("❤️ Like", type="primary", use_container_width=True):
+                # Save or update like action in database
+                db = None
+                try:
+                    db = next(get_db())
+                    # Check if action already exists for this proposal and session
+                    existing_action = db.query(ProposalAction).filter(
+                        ProposalAction.proposal_id == current_proposal.id,
+                        ProposalAction.session_id == st.session_state.session_id
+                    ).first()
+                    
+                    if existing_action:
+                        # Update existing action
+                        existing_action.action_type = "like"
+                    else:
+                        # Create new action
+                        action = ProposalAction(
+                            proposal_id=current_proposal.id,
+                            action_type="like",
+                            session_id=st.session_state.session_id
+                        )
+                        db.add(action)
+                    db.commit()
+                except Exception as e:
+                    if db:
+                        db.rollback()
+                    st.error(f"Error saving like: {str(e)}")
+                    # Continue even if save fails
+                finally:
+                    if db:
+                        db.close()
+                
                 # Move to next profile
                 st.session_state.deck_index = (st.session_state.deck_index + 1) % len(proposals)
                 st.rerun()
