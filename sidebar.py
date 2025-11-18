@@ -18,15 +18,25 @@ def render_sidebar():
     if "current_page" not in st.session_state:
         st.session_state.current_page = "home"
     
-    # Create navigation buttons
+    # Use the radio button's key to manage state - this ensures immediate updates
+    # If the key exists in session state, use it; otherwise use current_page
+    if "page_navigation" not in st.session_state:
+        # Initialize based on current_page
+        current_index = 0
+        if st.session_state.current_page in pages.values():
+            current_index = list(pages.values()).index(st.session_state.current_page)
+        st.session_state.page_navigation = list(pages.keys())[current_index]
+    
+    # Create navigation buttons with a key to ensure proper state management
     selected = st.sidebar.radio(
         "Go to",
         list(pages.keys()),
-        index=list(pages.values()).index(st.session_state.current_page) if st.session_state.current_page in pages.values() else 0
+        key="page_navigation"
     )
     
-    # Update session state with selected page
-    st.session_state.current_page = pages[selected]
+    # Update session state with selected page based on radio button value
+    selected_page = pages[selected]
+    st.session_state.current_page = selected_page
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### About")
