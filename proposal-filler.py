@@ -13,7 +13,7 @@ from datetime import datetime
 from storage import upload_file_to_s3, is_s3_available, get_s3_url
 import traceback
 from sidebar import render_sidebar
-from page2 import render_page2
+from tinderish import render_tinderish
 
 
 def is_streamlit_cloud():
