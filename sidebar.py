@@ -11,7 +11,7 @@ def render_sidebar():
     # Define available pages
     pages = {
         "🏠 Home": "home",
-        "📄 Page 2": "page2"
+        "📄 Tinderish": "tinderish"
     }
     
     # Initialize session state for current page if not set
