@@ -22,7 +22,8 @@ def render_sidebar():
     pages = {
         "👤 Profile": "profile",
         "📄 Tinderish": "tinderish",
-        "📋 Profile Browser": "profilebrowser"
+        "📋 Profile Browser": "profilebrowser",
+        "❤️ Like Browser": "likebrowser"
     }
     
     # Initialize session state for current page if not set

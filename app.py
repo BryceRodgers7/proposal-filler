@@ -10,6 +10,7 @@ from sidebar import render_sidebar
 from proposal_filler import render_profile_page
 from tinderish import render_tinderish
 from profilebrowser import render_profile_browser
+from like_browser import render_like_browser
 from auth import is_authenticated, render_login_page
 
 # ----- CONFIG -----
@@ -49,6 +50,8 @@ else:
         render_tinderish()
     elif current_page == "profilebrowser":
         render_profile_browser()
+    elif current_page == "likebrowser":
+        render_like_browser()
     elif current_page == "profile":
         render_profile_page()
     else:
