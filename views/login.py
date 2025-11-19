@@ -9,7 +9,8 @@ def render_login_page():
     """
     Render the login/registration page.
     """
-    st.title("🔐 Login / Register")
+    st.title("💚 Tinder for Non-Profits")
+    st.markdown("### 🔐 Login / Register")
     
     # Create tabs for login and registration
     tab1, tab2 = st.tabs(["Login", "Register"])
