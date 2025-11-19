@@ -10,14 +10,14 @@ def render_sidebar():
     
     # Define available pages
     pages = {
-        "🏠 Home": "home",
+        "👤 Profile": "profile",
         "📄 Tinderish": "tinderish",
         "📋 Profile Browser": "profilebrowser"
     }
     
     # Initialize session state for current page if not set
     if "current_page" not in st.session_state:
-        st.session_state.current_page = "home"
+        st.session_state.current_page = "profile"
     
     # Use the radio button's key to manage state - this ensures immediate updates
     # If the key exists in session state, use it; otherwise use current_page

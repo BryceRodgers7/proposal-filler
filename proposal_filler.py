@@ -1,4 +1,7 @@
-# app.py
+"""
+Profile page for the Proposal Filler application.
+Contains the form filler functionality with AI extraction.
+"""
 import json
 import io
 import os
@@ -8,13 +11,9 @@ from openai import OpenAI
 import pdfplumber  
 from dotenv import load_dotenv
 from docx import Document  
-from db import init_db, SessionLocal, ProposalSubmission, get_db
-from datetime import datetime
-from storage import upload_file_to_s3, is_s3_available, get_s3_url
+from db import ProposalSubmission, get_db
+from storage import upload_file_to_s3
 import traceback
-from sidebar import render_sidebar
-from tinderish import render_tinderish
-from profilebrowser import render_profile_browser
 
 
 def is_streamlit_cloud():
@@ -36,23 +35,6 @@ def is_streamlit_cloud():
     except:
         pass
     return False
-
-
-# Initialize database
-_db_initialized = False
-try:
-    init_db()
-    _db_initialized = True
-except Exception as e:
-    # Log error but don't crash the app
-    print(f"⚠️ Database initialization warning: {str(e)}")
-    print("The app will continue to run, but database features may not work.")
-
-# Initialize S3 storage
-_s3_available = is_s3_available()
-if not _s3_available:
-    print("⚠️ S3 storage is not available. Please check your AWS credentials in secrets.toml")
-    print("The app will continue to run, but uploaded files may not be saved to S3.")
 
 
 def get_api_key():
@@ -78,11 +60,9 @@ def get_api_key():
     # No key found
     return None
 
+# Initialize OpenAI client
 api_key = get_api_key()
-
 client = OpenAI(api_key=api_key)
-# ----- CONFIG -----
-st.set_page_config(page_title="Proposal Form Filler", page_icon="🤖", layout="centered")
 
 # ----- DISCRETE OPTIONS FOR FIELDS -----
 PRIMARY_CAUSE_AREAS = [
@@ -301,13 +281,17 @@ def call_llm_to_structure(text: str) -> dict:
     return merged
 
 
-def render_home_page():
-    """Render the home page content."""
+def render_profile_page():
+    """Render the profile page content."""
+    # Get initialization flags from session state (set by app.py)
+    db_initialized = st.session_state.get("db_initialized", False)
+    s3_available = st.session_state.get("s3_available", False)
+    
     # ----- STREAMLIT APP -----
     if "form_data" not in st.session_state:
         st.session_state.form_data = DEFAULT_FORM.copy()
 
-    st.title("🤖 AI-Powered Form Filler")
+    st.title("👤 AI-Powered Profile Buildier")
     st.write(
         "Upload a proposal (PDF, DOCX, or TXT). "
         "The app will use AI to extract key fields into a structured form you can edit."
@@ -336,7 +320,7 @@ def render_home_page():
             # Try to upload file to S3 (if available)
             s3_path = None
             s3_upload_success = False
-            if _s3_available:
+            if s3_available:
                 try:
                     # Read file data as bytes (getbuffer() returns memoryview, need to convert to bytes)
                     file_buffer = uploaded_file.getbuffer()
@@ -461,7 +445,7 @@ def render_home_page():
 
     with col1:
         if st.button("💾 Save to Database", type="primary"):
-            if not _db_initialized:
+            if not db_initialized:
                 st.error("⚠️ Database is not available. Please check your database configuration.")
             elif "uploaded_file_info" not in st.session_state:
                 st.error("Please upload a file first.")
@@ -533,14 +517,3 @@ def render_home_page():
         if "last_saved_id" in st.session_state:
             st.info(f"Last saved submission ID: {st.session_state.last_saved_id}")
 
-
-# ----- SIDEBAR NAVIGATION -----
-current_page = render_sidebar()
-
-# ----- PAGE ROUTING -----
-if current_page == "tinderish":
-    render_tinderish()
-elif current_page == "profilebrowser":
-    render_profile_browser()
-else:
-    render_home_page()
