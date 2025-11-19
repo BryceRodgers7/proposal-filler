@@ -156,6 +156,7 @@ def init_db():
     # Run migrations to add new columns to existing tables
     # migrate_add_account_tier()
 
+
 # unused thus far
 def drop_and_recreate_tables():
     """

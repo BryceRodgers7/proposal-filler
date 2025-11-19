@@ -1,5 +1,5 @@
 import streamlit as st
-from db import get_db, ProposalSubmission
+from helpers.db import get_db, ProposalSubmission
 
 
 def render_profile_browser():

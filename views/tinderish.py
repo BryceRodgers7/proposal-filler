@@ -1,6 +1,6 @@
 import streamlit as st
-from db import get_db, ProposalSubmission, ProposalAction
-from auth import get_current_user_id
+from helpers.db import get_db, ProposalSubmission, ProposalAction
+from helpers.auth import get_current_user_id
 import html
 
 

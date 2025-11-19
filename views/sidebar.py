@@ -1,5 +1,5 @@
 import streamlit as st
-from auth import get_current_user, logout, has_account_tier
+from helpers.auth import get_current_user, logout, has_account_tier
 
 
 def render_sidebar():

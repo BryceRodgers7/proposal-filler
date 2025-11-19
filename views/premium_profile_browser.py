@@ -1,6 +1,6 @@
 import streamlit as st
-from db import get_db, ProposalSubmission
-from auth import has_account_tier, get_current_user_id
+from helpers.db import get_db, ProposalSubmission
+from helpers.auth import has_account_tier, get_current_user_id
 
 
 def render_premium_profile_browser():

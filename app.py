@@ -4,15 +4,16 @@ This file handles app initialization, configuration, and page routing.
 """
 import os
 import streamlit as st
-from db import init_db
-from storage import is_s3_available
-from sidebar import render_sidebar
-from proposal_filler import render_profile_page
-from tinderish import render_tinderish
-from profilebrowser import render_profile_browser
-from like_browser import render_like_browser
-from premium_profile_browser import render_premium_profile_browser
-from auth import is_authenticated, render_login_page
+from helpers.db import init_db
+from helpers.storage import is_s3_available
+from views.sidebar import render_sidebar
+from views.proposal_filler import render_profile_page
+from views.tinderish import render_tinderish
+from views.profilebrowser import render_profile_browser
+from views.like_browser import render_like_browser
+from views.premium_profile_browser import render_premium_profile_browser
+from helpers.auth import is_authenticated
+from views.login import render_login_page
 
 # ----- CONFIG -----
 st.set_page_config(page_title="Proposal Form Filler", page_icon="🤖", layout="centered")

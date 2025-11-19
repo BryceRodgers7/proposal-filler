@@ -1,6 +1,6 @@
 import streamlit as st
 from sqlalchemy.orm import joinedload
-from db import get_db, ProposalAction, ProposalSubmission, User
+from helpers.db import get_db, ProposalAction, ProposalSubmission, User
 
 
 def render_like_browser():

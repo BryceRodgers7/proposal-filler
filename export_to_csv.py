@@ -5,7 +5,7 @@ import csv
 import json
 import os
 from datetime import datetime
-from db import SessionLocal, ProposalSubmission
+from helpers.db import SessionLocal, ProposalSubmission
 
 
 def export_to_csv(output_file="proposal_submissions.csv"):
