@@ -1,5 +1,5 @@
 import streamlit as st
-from auth import get_current_user, logout
+from auth import get_current_user, logout, has_account_tier
 
 
 def render_sidebar():
@@ -12,7 +12,10 @@ def render_sidebar():
     # Show current user info
     user = get_current_user()
     if user:
+        account_tier = user.account_tier or "free"
+        tier_emoji = "⭐" if account_tier.lower() in ["premium", "enterprise"] else "👤"
         st.sidebar.markdown(f"**Logged in as:** {user.username}")
+        st.sidebar.markdown(f"**Account tier:** {tier_emoji} {account_tier.capitalize()}")
         if st.sidebar.button("🚪 Logout", use_container_width=True):
             logout()
             st.rerun()
@@ -25,6 +28,10 @@ def render_sidebar():
         "📋 Profile Browser": "profilebrowser",
         "❤️ Like Browser": "likebrowser"
     }
+    
+    # Add premium pages if user has premium access
+    if has_account_tier(required_tier="premium"):
+        pages["⭐ Premium Profile Browser"] = "premiumprofilebrowser"
     
     # Initialize session state for current page if not set
     if "current_page" not in st.session_state:

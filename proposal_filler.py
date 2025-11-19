@@ -11,9 +11,9 @@ from openai import OpenAI
 import pdfplumber  
 from dotenv import load_dotenv
 from docx import Document  
-from db import ProposalSubmission, get_db
+from db import ProposalSubmission, get_db, User
 from storage import upload_file_to_s3
-from auth import get_current_user_id
+from auth import get_current_user_id, has_account_tier, get_user_account_tier
 import traceback
 
 
@@ -661,4 +661,29 @@ def render_profile_page():
         # Show last saved ID if available
         if "last_saved_id" in st.session_state:
             st.info(f"Last saved submission ID: {st.session_state.last_saved_id}")
+    
+    # --- Account Tier & Upgrade Section ---
+    current_tier = get_user_account_tier()
+    if current_tier and current_tier.lower() != "premium" and current_tier.lower() != "enterprise":
+        st.markdown("---")
+        st.markdown("### ⭐ Upgrade to Premium")
+        st.info(f"Your current account tier: **{current_tier}**")
+        if st.button("🚀 Upgrade to Premium", type="primary", use_container_width=True):
+            try:
+                db = next(get_db())
+                user = db.query(User).filter(User.id == user_id).first()
+                if user:
+                    user.account_tier = "premium"
+                    db.commit()
+                    db.close()
+                    st.success("✅ Successfully upgraded to Premium! Please refresh the page to see premium features.")
+                    st.rerun()
+                else:
+                    st.error("Error: User not found.")
+                    db.close()
+            except Exception as e:
+                st.error(f"Error upgrading account: {str(e)}")
+                if 'db' in locals():
+                    db.rollback()
+                    db.close()
 

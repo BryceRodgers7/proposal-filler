@@ -118,7 +118,7 @@ def register(username, email, password, confirm_password):
             return False, "Email already exists", None
         
         # Create new user
-        user = User(username=username, email=email)
+        user = User(username=username, email=email, account_tier="free")
         user.set_password(password)
         
         db.add(user)
@@ -143,6 +143,58 @@ def logout():
         del st.session_state.user_id
     if "username" in st.session_state:
         del st.session_state.username
+
+
+def get_user_account_tier(user_id=None):
+    """
+    Get the account tier for a user.
+    
+    Args:
+        user_id (int, optional): User ID. If None, uses current logged-in user.
+        
+    Returns:
+        str: Account tier (e.g., "free", "premium", "enterprise") or None if user not found
+    """
+    if user_id is None:
+        user_id = get_current_user_id()
+    
+    if user_id is None:
+        return None
+    
+    try:
+        db = next(get_db())
+        user = db.query(User).filter(User.id == user_id).first()
+        db.close()
+        
+        if user:
+            return user.account_tier
+        return None
+    except Exception:
+        return None
+
+
+def has_account_tier(user_id=None, required_tier="premium"):
+    """
+    Check if a user has at least the required account tier.
+    Tier hierarchy: free < premium < enterprise
+    
+    Args:
+        user_id (int, optional): User ID. If None, uses current logged-in user.
+        required_tier (str): Required tier level ("free", "premium", or "enterprise")
+        
+    Returns:
+        bool: True if user has the required tier or higher, False otherwise
+    """
+    tier_hierarchy = {"free": 1, "premium": 2, "enterprise": 3}
+    
+    user_tier = get_user_account_tier(user_id)
+    if user_tier is None:
+        return False
+    
+    user_level = tier_hierarchy.get(user_tier.lower(), 0)
+    required_level = tier_hierarchy.get(required_tier.lower(), 999)
+    
+    return user_level >= required_level
 
 
 def render_login_page():

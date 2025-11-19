@@ -5,7 +5,7 @@ This file defines the database schema and provides database connection utilities
 import os
 import streamlit as st
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Integer, Text, DateTime, JSON, ForeignKey
+from sqlalchemy import create_engine, Column, String, Integer, Text, DateTime, JSON, ForeignKey, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -30,6 +30,9 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
+    
+    # Account tier for feature gating (e.g., "free", "premium", "enterprise")
+    account_tier = Column(String(50), nullable=False, default="free", server_default="free")
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -114,6 +117,31 @@ class ProposalAction(Base):
     user = relationship("User", back_populates="actions")
 
 
+def migrate_add_account_tier():
+    """
+    Migration: Add account_tier column to app_users table if it doesn't exist.
+    This allows adding new columns without recreating the table.
+    """
+    try:
+        inspector = inspect(engine)
+        columns = [col['name'] for col in inspector.get_columns('app_users')]
+        
+        if 'account_tier' not in columns:
+            # Column doesn't exist, add it
+            with engine.connect() as conn:
+                # Add the column with a default value
+                conn.execute(
+                    text("ALTER TABLE app_users ADD COLUMN account_tier VARCHAR(50) NOT NULL DEFAULT 'free'")
+                )
+                conn.commit()
+            print("✅ Migration: Added account_tier column to app_users table")
+        else:
+            print("ℹ️ Migration: account_tier column already exists")
+    except Exception as e:
+        # Table might not exist yet, or other error - that's okay, init_db will handle it
+        print(f"ℹ️ Migration check: {str(e)}")
+
+
 def init_db():
     """
     Initialize the database by creating all tables.
@@ -122,8 +150,11 @@ def init_db():
     # Ensure data directory exists
     os.makedirs("data", exist_ok=True)
     
-    # Create all tables
+    # Create all tables (only creates if they don't exist)
     Base.metadata.create_all(bind=engine)
+    
+    # Run migrations to add new columns to existing tables
+    # migrate_add_account_tier()
 
 # unused thus far
 def drop_and_recreate_tables():

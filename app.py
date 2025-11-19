@@ -11,6 +11,7 @@ from proposal_filler import render_profile_page
 from tinderish import render_tinderish
 from profilebrowser import render_profile_browser
 from like_browser import render_like_browser
+from premium_profile_browser import render_premium_profile_browser
 from auth import is_authenticated, render_login_page
 
 # ----- CONFIG -----
@@ -52,6 +53,8 @@ else:
         render_profile_browser()
     elif current_page == "likebrowser":
         render_like_browser()
+    elif current_page == "premiumprofilebrowser":
+        render_premium_profile_browser()
     elif current_page == "profile":
         render_profile_page()
     else:
