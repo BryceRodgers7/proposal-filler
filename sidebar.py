@@ -57,9 +57,5 @@ def render_sidebar():
     selected_page = pages[selected]
     st.session_state.current_page = selected_page
     
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### About")
-    st.sidebar.info("AI-Powered Proposal Form Filler")
-    
     return st.session_state.current_page
 
