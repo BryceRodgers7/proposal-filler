@@ -1,4 +1,5 @@
 import streamlit as st
+from auth import get_current_user, logout
 
 
 def render_sidebar():
@@ -7,6 +8,15 @@ def render_sidebar():
     Returns the selected page name.
     """
     st.sidebar.title("📋 Navigation")
+    
+    # Show current user info
+    user = get_current_user()
+    if user:
+        st.sidebar.markdown(f"**Logged in as:** {user.username}")
+        if st.sidebar.button("🚪 Logout", use_container_width=True):
+            logout()
+            st.rerun()
+        st.sidebar.markdown("---")
     
     # Define available pages
     pages = {

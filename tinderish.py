@@ -1,7 +1,7 @@
 import streamlit as st
 from db import get_db, ProposalSubmission, ProposalAction
+from auth import get_current_user_id
 import html
-import uuid
 
 
 def render_tinderish():
@@ -11,25 +11,29 @@ def render_tinderish():
     st.title("🎴 Proposal Deck")
     st.write("Review and rate proposals from the database")
     
+    # Get current user ID
+    user_id = get_current_user_id()
+    if user_id is None:
+        st.error("You must be logged in to access this page.")
+        return
+    
     # Initialize session state for deck navigation
     if "deck_index" not in st.session_state:
         st.session_state.deck_index = 0
     
-    # Initialize session ID for tracking actions
-    if "session_id" not in st.session_state:
-        st.session_state.session_id = str(uuid.uuid4())
-    
-    # Fetch all proposals from database
+    # Fetch all proposals from database, excluding the current user's profile
     try:
         db = next(get_db())
-        proposals = db.query(ProposalSubmission).order_by(ProposalSubmission.id.desc()).all()
+        proposals = db.query(ProposalSubmission).filter(
+            ProposalSubmission.user_id != user_id
+        ).order_by(ProposalSubmission.id.desc()).all()
         db.close()
     except Exception as e:
         st.error(f"Error loading proposals: {str(e)}")
         proposals = []
     
     if not proposals:
-        st.warning("No proposals found in the database. Please add some proposals first.")
+        st.warning("No proposals found in the database (excluding your own profile). Please wait for other users to add proposals.")
         return
     
     # Ensure index is within bounds
@@ -87,10 +91,10 @@ def render_tinderish():
                 db = None
                 try:
                     db = next(get_db())
-                    # Check if action already exists for this proposal and session
+                    # Check if action already exists for this proposal and user
                     existing_action = db.query(ProposalAction).filter(
                         ProposalAction.proposal_id == current_proposal.id,
-                        ProposalAction.session_id == st.session_state.session_id
+                        ProposalAction.user_id == user_id
                     ).first()
                     
                     if existing_action:
@@ -100,8 +104,8 @@ def render_tinderish():
                         # Create new action
                         action = ProposalAction(
                             proposal_id=current_proposal.id,
-                            action_type="pass",
-                            session_id=st.session_state.session_id
+                            user_id=user_id,
+                            action_type="pass"
                         )
                         db.add(action)
                     db.commit()
@@ -124,10 +128,10 @@ def render_tinderish():
                 db = None
                 try:
                     db = next(get_db())
-                    # Check if action already exists for this proposal and session
+                    # Check if action already exists for this proposal and user
                     existing_action = db.query(ProposalAction).filter(
                         ProposalAction.proposal_id == current_proposal.id,
-                        ProposalAction.session_id == st.session_state.session_id
+                        ProposalAction.user_id == user_id
                     ).first()
                     
                     if existing_action:
@@ -137,8 +141,8 @@ def render_tinderish():
                         # Create new action
                         action = ProposalAction(
                             proposal_id=current_proposal.id,
-                            action_type="like",
-                            session_id=st.session_state.session_id
+                            user_id=user_id,
+                            action_type="like"
                         )
                         db.add(action)
                     db.commit()

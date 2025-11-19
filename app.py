@@ -10,6 +10,7 @@ from sidebar import render_sidebar
 from proposal_filler import render_profile_page
 from tinderish import render_tinderish
 from profilebrowser import render_profile_browser
+from auth import is_authenticated, render_login_page
 
 # ----- CONFIG -----
 st.set_page_config(page_title="Proposal Form Filler", page_icon="🤖", layout="centered")
@@ -34,16 +35,22 @@ if not _s3_available:
 st.session_state.db_initialized = _db_initialized
 st.session_state.s3_available = _s3_available
 
-# ----- SIDEBAR NAVIGATION -----
-current_page = render_sidebar()
-
-# ----- PAGE ROUTING -----
-if current_page == "tinderish":
-    render_tinderish()
-elif current_page == "profilebrowser":
-    render_profile_browser()
-elif current_page == "profile":
-    render_profile_page()
+# ----- AUTHENTICATION CHECK -----
+if not is_authenticated():
+    # User is not logged in, show login page
+    render_login_page()
 else:
-    render_profile_page()  # Default to profile page
+    # User is authenticated, show the app
+    # ----- SIDEBAR NAVIGATION -----
+    current_page = render_sidebar()
+
+    # ----- PAGE ROUTING -----
+    if current_page == "tinderish":
+        render_tinderish()
+    elif current_page == "profilebrowser":
+        render_profile_browser()
+    elif current_page == "profile":
+        render_profile_page()
+    else:
+        render_profile_page()  # Default to profile page
 

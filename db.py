@@ -7,6 +7,7 @@ import streamlit as st
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Integer, Text, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+from werkzeug.security import generate_password_hash, check_password_hash
 
 DB_URL = st.secrets["DATABASE_URL"]  # Supabase Postgres URL
 
@@ -19,6 +20,34 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+class User(Base):
+    """
+    User table to store user accounts.
+    """
+    __tablename__ = "app_users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    proposals = relationship("ProposalSubmission", back_populates="user", cascade="all, delete-orphan")
+    actions = relationship("ProposalAction", back_populates="user", cascade="all, delete-orphan")
+    
+    def set_password(self, password):
+        """Hash and set the user's password."""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Check if the provided password matches the user's password."""
+        return check_password_hash(self.password_hash, password)
+
+
 class ProposalSubmission(Base):
     """
     Main table to store proposal submissions with extracted and form data.
@@ -26,6 +55,10 @@ class ProposalSubmission(Base):
     __tablename__ = "proposal_submissions"
 
     id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign key to user
+    user_id = Column(Integer, ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
     # File information
     file_name = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)  # Local path or S3 key
@@ -51,7 +84,8 @@ class ProposalSubmission(Base):
     # Store raw extracted text for reference (can handle 10,000+ characters, not indexed)
     extracted_text = Column(Text, nullable=True, index=False)
     
-    # Relationship to likes/passes
+    # Relationships
+    user = relationship("User", back_populates="proposals")
     actions = relationship("ProposalAction", back_populates="proposal", cascade="all, delete-orphan")
 
 
@@ -66,17 +100,18 @@ class ProposalAction(Base):
     # Foreign key to proposal submission
     proposal_id = Column(Integer, ForeignKey("proposal_submissions.id", ondelete="CASCADE"), nullable=False, index=True)
     
+    # Foreign key to user
+    user_id = Column(Integer, ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
     # Action type: like or pass
     action_type = Column(String(10), nullable=False, index=True)  # "like" or "pass"
     
     # Timestamp when action was taken
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
-    # Optional: session identifier to track which user/session made the action
-    session_id = Column(String(255), nullable=True, index=True)
-    
-    # Relationship back to proposal
+    # Relationships
     proposal = relationship("ProposalSubmission", back_populates="actions")
+    user = relationship("User", back_populates="actions")
 
 
 def init_db():

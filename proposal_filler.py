@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from docx import Document  
 from db import ProposalSubmission, get_db
 from storage import upload_file_to_s3
+from auth import get_current_user_id
 import traceback
 
 
@@ -286,12 +287,113 @@ def render_profile_page():
     # Get initialization flags from session state (set by app.py)
     db_initialized = st.session_state.get("db_initialized", False)
     s3_available = st.session_state.get("s3_available", False)
+    user_id = get_current_user_id()
     
-    # ----- STREAMLIT APP -----
-    if "form_data" not in st.session_state:
-        st.session_state.form_data = DEFAULT_FORM.copy()
+    if user_id is None:
+        st.error("You must be logged in to access this page.")
+        return
+    
+    # Load existing profile for current user if it exists
+    # Track if we've loaded the profile for this user session
+    # Check if the user has changed (e.g., logged out and back in)
+    if "last_loaded_user_id" not in st.session_state or st.session_state.last_loaded_user_id != user_id:
+        # User has changed - clear profile loading state
+        st.session_state.last_loaded_user_id = user_id
+        # Clear any profile-related session state
+        keys_to_clear = [key for key in st.session_state.keys() if key.startswith("profile_loaded_user_")]
+        for key in keys_to_clear:
+            del st.session_state[key]
+        # Clear form_data so it gets reloaded
+        if "form_data" in st.session_state:
+            del st.session_state.form_data
+        if "existing_submission_id" in st.session_state:
+            del st.session_state.existing_submission_id
+    
+    profile_loaded_key = f"profile_loaded_user_{user_id}"
+    
+    existing_submission = None
+    existing_submission_id = None
+    
+    # Always check for existing submission
+    try:
+        db = next(get_db())
+        existing_submission = db.query(ProposalSubmission).filter(
+            ProposalSubmission.user_id == user_id
+        ).order_by(ProposalSubmission.updated_at.desc()).first()
+        db.close()
+        
+        if existing_submission:
+            existing_submission_id = existing_submission.id
+            st.session_state.existing_submission_id = existing_submission_id
+        else:
+            # No profile exists yet - this is normal for new users
+            st.session_state.no_profile_yet = True
+            # Clear any stale existing_submission_id
+            if "existing_submission_id" in st.session_state:
+                del st.session_state.existing_submission_id
+    except Exception as e:
+        # Only show error for actual database errors
+        st.error(f"Error loading profile: {str(e)}")
+        existing_submission = None
+    
+    # Initialize or populate form_data with existing profile data
+    # If we haven't loaded the profile for this user session yet, or form_data doesn't exist, populate it
+    if not st.session_state.get(profile_loaded_key, False) or "form_data" not in st.session_state:
+        if existing_submission:
+            # We have an existing profile - populate form_data with it
+            st.session_state.form_data = {
+                "full_organization_name": existing_submission.full_organization_name or "",
+                "legal_designation": existing_submission.legal_designation or "",
+                "mission_statement": existing_submission.mission_statement or "",
+                "ein": existing_submission.ein or "",
+                "year_founded": existing_submission.year_founded or "",
+                "location_served": existing_submission.location_served or "",
+                "biggest_accomplishment": existing_submission.biggest_accomplishment or "",
+                "what_we_do_in_one_sentence": existing_submission.what_we_do_in_one_sentence or "",
+                "primary_cause_area": existing_submission.primary_cause_area if isinstance(existing_submission.primary_cause_area, list) else [],
+                "populations": existing_submission.populations if isinstance(existing_submission.populations, list) else [],
+                "geographic_focus": existing_submission.geographic_focus or ""
+            }
+            st.session_state.extracted_text = existing_submission.extracted_text or ""
+            st.session_state[profile_loaded_key] = True
+        else:
+            # No existing profile - initialize with empty form
+            st.session_state.form_data = DEFAULT_FORM.copy()
+            st.session_state[profile_loaded_key] = True
+    else:
+        # Form data exists and we've already loaded - but check if it's empty and we have existing data
+        current_form = st.session_state.form_data
+        is_default_form = (
+            not current_form.get("full_organization_name") and
+            not current_form.get("mission_statement") and
+            not current_form.get("ein")
+        )
+        if is_default_form and existing_submission:
+            # Form is empty but we have existing data - populate it
+            st.session_state.form_data = {
+                "full_organization_name": existing_submission.full_organization_name or "",
+                "legal_designation": existing_submission.legal_designation or "",
+                "mission_statement": existing_submission.mission_statement or "",
+                "ein": existing_submission.ein or "",
+                "year_founded": existing_submission.year_founded or "",
+                "location_served": existing_submission.location_served or "",
+                "biggest_accomplishment": existing_submission.biggest_accomplishment or "",
+                "what_we_do_in_one_sentence": existing_submission.what_we_do_in_one_sentence or "",
+                "primary_cause_area": existing_submission.primary_cause_area if isinstance(existing_submission.primary_cause_area, list) else [],
+                "populations": existing_submission.populations if isinstance(existing_submission.populations, list) else [],
+                "geographic_focus": existing_submission.geographic_focus or ""
+            }
+            if existing_submission.extracted_text:
+                st.session_state.extracted_text = existing_submission.extracted_text
 
-    st.title("👤 AI-Powered Profile Buildier")
+    st.title("👤 AI-Powered Profile Builder")
+    
+    # Show info if editing existing profile
+    if "existing_submission_id" in st.session_state:
+        st.info(f"📝 Editing your existing profile (ID: {st.session_state.existing_submission_id}). Upload a new file or edit the fields below.")
+    elif st.session_state.get("no_profile_yet", False):
+        st.info("👋 Welcome! You don't have a profile yet. Upload a proposal file below to get started, or fill out the form manually.")
+    
     st.write(
         "Upload a proposal (PDF, DOCX, or TXT). "
         "The app will use AI to extract key fields into a structured form you can edit."
@@ -447,49 +549,92 @@ def render_profile_page():
         if st.button("💾 Save to Database", type="primary"):
             if not db_initialized:
                 st.error("⚠️ Database is not available. Please check your database configuration.")
-            elif "uploaded_file_info" not in st.session_state:
-                st.error("Please upload a file first.")
+            elif "uploaded_file_info" not in st.session_state and "existing_submission_id" not in st.session_state:
+                st.error("Please upload a file first or have an existing profile to update.")
             else:
                 try:
                     db = next(get_db())
                     
-                    # Get file path - use S3 key or in-memory marker
-                    file_path = st.session_state.uploaded_file_info["saved_path"]
+                    # Check if we're updating an existing submission or creating a new one
+                    existing_id = st.session_state.get("existing_submission_id")
+                    is_new_profile = False
                     
-                    # If it's an S3 path, we can optionally store the full URL
-                    # For now, we'll store the S3 key (path) which can be used to construct the URL later
-                    if file_path and not file_path.startswith("in_memory:"):
-                        # It's an S3 key, store it as is
-                        pass
+                    if existing_id:
+                        # Update existing submission
+                        submission = db.query(ProposalSubmission).filter(
+                            ProposalSubmission.id == existing_id,
+                            ProposalSubmission.user_id == user_id
+                        ).first()
+                        
+                        if not submission:
+                            # Couldn't find the existing profile, so we'll create a new one
+                            submission = None
+                            is_new_profile = True
+                    
+                    if not existing_id or not submission:
+                        # Create new submission
+                        is_new_profile = True
+                        # Get file path - use S3 key or in-memory marker
+                        if "uploaded_file_info" in st.session_state:
+                            file_path = st.session_state.uploaded_file_info["saved_path"]
+                            file_name = st.session_state.uploaded_file_info["original_name"]
+                            file_type = st.session_state.uploaded_file_info["file_type"]
+                        else:
+                            # No file uploaded, use placeholder values
+                            file_path = "no_file"
+                            file_name = "manual_entry"
+                            file_type = "text/plain"
+                        
+                        submission = ProposalSubmission(
+                            user_id=user_id,
+                            file_name=file_name,
+                            file_path=file_path,
+                            file_type=file_type,
+                            full_organization_name=fd.get("full_organization_name", ""),
+                            legal_designation=fd.get("legal_designation", ""),
+                            mission_statement=fd.get("mission_statement", ""),
+                            ein=fd.get("ein", ""),
+                            year_founded=fd.get("year_founded", ""),
+                            location_served=fd.get("location_served", ""),
+                            biggest_accomplishment=fd.get("biggest_accomplishment", ""),
+                            what_we_do_in_one_sentence=fd.get("what_we_do_in_one_sentence", ""),
+                            primary_cause_area=fd.get("primary_cause_area", []),
+                            populations=fd.get("populations", []),
+                            geographic_focus=fd.get("geographic_focus", ""),
+                            extracted_text=st.session_state.get("extracted_text", "")
+                        )
+                        db.add(submission)
                     else:
-                        # File wasn't saved to S3, store reference
-                        file_path = file_path
+                        # Update existing submission fields
+                        if "uploaded_file_info" in st.session_state:
+                            submission.file_name = st.session_state.uploaded_file_info["original_name"]
+                            submission.file_path = st.session_state.uploaded_file_info["saved_path"]
+                            submission.file_type = st.session_state.uploaded_file_info["file_type"]
+                        
+                        submission.full_organization_name = fd.get("full_organization_name", "")
+                        submission.legal_designation = fd.get("legal_designation", "")
+                        submission.mission_statement = fd.get("mission_statement", "")
+                        submission.ein = fd.get("ein", "")
+                        submission.year_founded = fd.get("year_founded", "")
+                        submission.location_served = fd.get("location_served", "")
+                        submission.biggest_accomplishment = fd.get("biggest_accomplishment", "")
+                        submission.what_we_do_in_one_sentence = fd.get("what_we_do_in_one_sentence", "")
+                        submission.primary_cause_area = fd.get("primary_cause_area", [])
+                        submission.populations = fd.get("populations", [])
+                        submission.geographic_focus = fd.get("geographic_focus", "")
+                        if "extracted_text" in st.session_state:
+                            submission.extracted_text = st.session_state.extracted_text
                     
-                    # Create new submission record
-                    submission = ProposalSubmission(
-                        file_name=st.session_state.uploaded_file_info["original_name"],
-                        file_path=file_path,  # This will be the S3 key or in_memory marker
-                        file_type=st.session_state.uploaded_file_info["file_type"],
-                        full_organization_name=fd.get("full_organization_name", ""),
-                        legal_designation=fd.get("legal_designation", ""),
-                        mission_statement=fd.get("mission_statement", ""),
-                        ein=fd.get("ein", ""),
-                        year_founded=fd.get("year_founded", ""),
-                        location_served=fd.get("location_served", ""),
-                        biggest_accomplishment=fd.get("biggest_accomplishment", ""),
-                        what_we_do_in_one_sentence=fd.get("what_we_do_in_one_sentence", ""),
-                        primary_cause_area=fd.get("primary_cause_area", []),
-                        populations=fd.get("populations", []),
-                        geographic_focus=fd.get("geographic_focus", ""),
-                        extracted_text=st.session_state.get("extracted_text", "")
-                    )
-                    
-                    db.add(submission)
                     db.commit()
                     db.refresh(submission)
                     
-                    st.success(f"✅ Saved to database! Submission ID: {submission.id}")
+                    # Show appropriate success message
+                    if is_new_profile:
+                        st.success("✅ Profile created!")
+                    else:
+                        st.success(f"✅ Profile updated! Submission ID: {submission.id}")
                     st.session_state.last_saved_id = submission.id
+                    st.session_state.existing_submission_id = submission.id
                     
                 except Exception as e:
                     # Show full error details if running on Streamlit Cloud
