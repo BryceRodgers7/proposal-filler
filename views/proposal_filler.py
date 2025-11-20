@@ -11,7 +11,8 @@ import pdfplumber
 from docx import Document  
 from helpers.db import ProposalSubmission, get_db, User
 from helpers.storage import upload_file_to_s3
-from helpers.auth import get_current_user_id, has_account_tier, get_user_account_tier
+from helpers.auth import get_current_user_id, has_account_tier, get_user_account_tier, get_current_user
+from helpers.stripe_checkout import create_checkout_session
 from helpers.openai_client import (
     call_llm_to_structure,
     PRIMARY_CAUSE_AREAS,
@@ -473,22 +474,48 @@ def render_profile_page():
         st.markdown("---")
         st.markdown("### ⭐ Upgrade to Premium")
         st.info(f"Your current account tier: **{current_tier}**")
+        
+        # Check for checkout success/cancel messages
+        # Use experimental_get_query_params for compatibility with older Streamlit versions
+        try:
+            # Try new API first (Streamlit 1.28.0+)
+            query_params = st.query_params
+        except AttributeError:
+            # Fall back to experimental API (older Streamlit versions)
+            try:
+                query_params = st.experimental_get_query_params()
+                # Convert to dict format for consistency
+                query_params = {k: v[0] if isinstance(v, list) and len(v) > 0 else v for k, v in query_params.items()}
+            except AttributeError:
+                # If neither exists, use empty dict
+                query_params = {}
+        
+        if query_params.get("checkout") == "success":
+            st.success("✅ Payment successful! Your account has been upgraded to Premium. Please refresh the page to see premium features.")
+        elif query_params.get("checkout") == "cancel":
+            st.info("ℹ️ Checkout was cancelled. You can try again anytime.")
+        
         if st.button("🚀 Upgrade to Premium", type="primary", use_container_width=True):
             try:
-                db = next(get_db())
-                user = db.query(User).filter(User.id == user_id).first()
+                user = get_current_user()
                 if user:
-                    user.account_tier = "premium"
-                    db.commit()
-                    db.close()
-                    st.success("✅ Successfully upgraded to Premium! Please refresh the page to see premium features.")
+                    checkout_url = create_checkout_session(user)
+                    # Store checkout URL in session state and redirect
+                    st.session_state.checkout_url = checkout_url
                     st.rerun()
                 else:
-                    st.error("Error: User not found.")
-                    db.close()
+                    st.error("Error: User not found. Please log in again.")
             except Exception as e:
-                st.error(f"Error upgrading account: {str(e)}")
-                if 'db' in locals():
-                    db.rollback()
-                    db.close()
+                st.error(f"Error creating checkout session: {str(e)}")
+        
+        # Show checkout link if URL is in session state
+        if "checkout_url" in st.session_state:
+            st.markdown("---")
+            st.markdown("### Complete Your Purchase")
+            st.markdown(f"[Click here to complete your purchase →]({st.session_state.checkout_url})")
+            st.info("🔄 You will be redirected to Stripe to complete your payment.")
+            # Clear the checkout URL after showing it
+            if st.button("Cancel", key="cancel_checkout"):
+                del st.session_state.checkout_url
+                st.rerun()
 

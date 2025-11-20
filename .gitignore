@@ -138,3 +138,7 @@ dmypy.json
 
 # streamlit
 .streamlit/secrets.toml
+
+# AWS Lambda
+lambda/
+lambda/secrets.toml

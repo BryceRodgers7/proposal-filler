@@ -34,6 +34,9 @@ class User(Base):
     # Account tier for feature gating (e.g., "free", "premium", "enterprise")
     account_tier = Column(String(50), nullable=False, default="free", server_default="free")
     
+    # Stripe customer ID for payment processing
+    stripe_customer_id = Column(String(255), nullable=True, default="")
+    
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -117,26 +120,26 @@ class ProposalAction(Base):
     user = relationship("User", back_populates="actions")
 
 
-def migrate_add_account_tier():
+def migrate_add_col():
     """
-    Migration: Add account_tier column to app_users table if it doesn't exist.
+    Migration: Add stripe_customer_id column to app_users table if it doesn't exist.
     This allows adding new columns without recreating the table.
     """
     try:
         inspector = inspect(engine)
         columns = [col['name'] for col in inspector.get_columns('app_users')]
         
-        if 'account_tier' not in columns:
+        if 'stripe_customer_id' not in columns:
             # Column doesn't exist, add it
             with engine.connect() as conn:
-                # Add the column with a default value
+                # Add the column with a blank default value (nullable)
                 conn.execute(
-                    text("ALTER TABLE app_users ADD COLUMN account_tier VARCHAR(50) NOT NULL DEFAULT 'free'")
+                    text("ALTER TABLE app_users ADD COLUMN stripe_customer_id VARCHAR(255) DEFAULT ''")
                 )
                 conn.commit()
-            print("✅ Migration: Added account_tier column to app_users table")
+            print("✅ Migration: Added stripe_customer_id column to app_users table")
         else:
-            print("ℹ️ Migration: account_tier column already exists")
+            print("ℹ️ Migration: stripe_customer_id column already exists")
     except Exception as e:
         # Table might not exist yet, or other error - that's okay, init_db will handle it
         print(f"ℹ️ Migration check: {str(e)}")
@@ -154,7 +157,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     
     # Run migrations to add new columns to existing tables
-    # migrate_add_account_tier()
+    migrate_add_col()
 
 
 # unused thus far
