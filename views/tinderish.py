@@ -1,7 +1,6 @@
 import streamlit as st
 from helpers.db import get_db, ProposalSubmission, ProposalAction
 from helpers.auth import get_current_user_id
-import html
 
 
 def render_tinderish():
@@ -47,37 +46,37 @@ def render_tinderish():
     st.caption(f"Profile {st.session_state.deck_index + 1} of {len(proposals)}")
     
     # Create a card-style container for the profile
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("---")
     
     # Profile card with custom styling
     org_name = current_proposal.full_organization_name or 'Unnamed Organization'
-    # Escape HTML to prevent injection
-    org_name_escaped = html.escape(org_name)
     
-    # Use a container with custom CSS for the card effect
-    st.markdown(
-        f"""
-        <div style="
-            border: 2px solid #e0e0e0;
-            border-radius: 15px;
-            padding: 40px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            margin: 20px 0;
-            min-height: 250px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        ">
-            <h2 style="color: #1f77b4; margin-bottom: 20px;">{org_name_escaped}</h2>
-            <p style="font-size: 18px; color: #666;">Database ID: <strong>{current_proposal.id}</strong></p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # Prepare additional fields - escape HTML to prevent injection
+    import html
+    org_name_escaped = html.escape(str(org_name))
+    legal_designation = html.escape(str(current_proposal.legal_designation or 'Not specified'))
+    what_we_do = html.escape(str(current_proposal.what_we_do_in_one_sentence or 'Not specified'))
+    biggest_accomplishment = html.escape(str(current_proposal.biggest_accomplishment or 'Not specified'))
+    location_served = html.escape(str(current_proposal.location_served or 'Not specified'))
+    geographic_focus = html.escape(str(current_proposal.geographic_focus or 'Not specified'))
     
-    st.markdown("<br>", unsafe_allow_html=True)
+    # Create a styled box with all content in a single HTML block
+    profile_html = f"""
+    <div style="background-color: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 10px; padding: 25px; margin: 20px 0;">
+        <h3 style="color: #1f77b4; margin-top: 0;">{org_name_escaped}</h3>
+        <hr style="border: 1px solid #e0e0e0; margin: 15px 0;">
+        <p><strong>🏛️ Legal Designation:</strong><br>{legal_designation}</p>
+        <p><strong>💼 What we do:</strong><br>{what_we_do}</p>
+        <p><strong>🏆 Biggest Accomplishment:</strong><br>{biggest_accomplishment}</p>
+        <p><strong>📍 Location Served:</strong><br>{location_served}</p>
+        <p><strong>🌍 Geographical Focus:</strong><br>{geographic_focus}</p>
+        <hr style="border: 1px solid #e0e0e0; margin: 15px 0;">
+        <p style="font-size: 0.9em; color: #666; text-align: center; margin-bottom: 0;">Database ID: {current_proposal.id}</p>
+    </div>
+    """
+    
+    st.markdown(profile_html, unsafe_allow_html=True)
+    st.markdown("")
     
     # Like and Pass buttons
     col1, col2, col3 = st.columns([1, 2, 1])
