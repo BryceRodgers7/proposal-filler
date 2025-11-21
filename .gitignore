@@ -140,5 +140,5 @@ dmypy.json
 .streamlit/secrets.toml
 
 # AWS Lambda
-lambda/
 lambda/secrets.toml
+lambda/lambda_deployment.zip
