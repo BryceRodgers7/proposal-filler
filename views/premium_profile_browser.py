@@ -6,8 +6,15 @@ from helpers.auth import has_account_tier, get_current_user_id
 def render_premium_profile_browser():
     """
     Render a premium read-only browser page for viewing all proposal submissions.
-    Only accessible to premium users.
+    Only accessible to premium representatives.
     """
+    # Check if user is a representative
+    user_type = st.session_state.get("user_type", "representative")
+    if user_type != "representative":
+        st.title("🔒 Representatives Only")
+        st.error("❌ This page is only accessible to representatives.")
+        return
+    
     # Check if user has premium access
     if not has_account_tier(required_tier="premium"):
         st.title("🔒 Premium Feature")

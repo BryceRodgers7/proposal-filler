@@ -45,6 +45,16 @@ def get_current_user():
         return None
 
 
+def get_current_user_type():
+    """
+    Get the current logged-in user's type.
+    
+    Returns:
+        str or None: User type ("representative" or "donor") if authenticated, None otherwise
+    """
+    return st.session_state.get("user_type")
+
+
 def login(username, password):
     """
     Authenticate a user with username and password.
@@ -73,13 +83,14 @@ def login(username, password):
         # Set user in session state
         st.session_state.user_id = user.id
         st.session_state.username = user.username
+        st.session_state.user_type = user.user_type
         
         return True, "Login successful", user
     except Exception as e:
         return False, f"Error during login: {str(e)}", None
 
 
-def register(username, email, password, confirm_password):
+def register(username, email, password, confirm_password, user_type="representative"):
     """
     Register a new user.
     
@@ -88,6 +99,7 @@ def register(username, email, password, confirm_password):
         email (str): Email address
         password (str): Plain text password
         confirm_password (str): Password confirmation
+        user_type (str): User type ("representative" or "donor")
         
     Returns:
         tuple: (success: bool, message: str, user: User or None)
@@ -101,6 +113,9 @@ def register(username, email, password, confirm_password):
     
     if len(password) < 6:
         return False, "Password must be at least 6 characters long", None
+    
+    if user_type not in ["representative", "donor"]:
+        return False, "Invalid user type", None
     
     try:
         db = next(get_db())
@@ -118,7 +133,7 @@ def register(username, email, password, confirm_password):
             return False, "Email already exists", None
         
         # Create new user
-        user = User(username=username, email=email, account_tier="free")
+        user = User(username=username, email=email, account_tier="free", user_type=user_type)
         user.set_password(password)
         
         db.add(user)
@@ -129,6 +144,7 @@ def register(username, email, password, confirm_password):
         # Automatically log in the new user
         st.session_state.user_id = user.id
         st.session_state.username = user.username
+        st.session_state.user_type = user.user_type
         
         return True, "Registration successful! You are now logged in.", user
     except Exception as e:
@@ -143,6 +159,8 @@ def logout():
         del st.session_state.user_id
     if "username" in st.session_state:
         del st.session_state.username
+    if "user_type" in st.session_state:
+        del st.session_state.user_type
 
 
 def get_user_account_tier(user_id=None):

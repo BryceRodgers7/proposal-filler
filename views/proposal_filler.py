@@ -99,6 +99,12 @@ def render_profile_page():
         st.error("You must be logged in to access this page.")
         return
     
+    # Check if user is a representative
+    user_type = st.session_state.get("user_type", "representative")
+    if user_type != "representative":
+        st.error("❌ This page is only accessible to representatives. Donors should use the 'My Donor Profile' page instead.")
+        return
+    
     # Load existing profile for current user if it exists
     # Track if we've loaded the profile for this user session
     # Check if the user has changed (e.g., logged out and back in)

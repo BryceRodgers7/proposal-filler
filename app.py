@@ -12,6 +12,9 @@ from views.tinderish import render_tinderish
 from views.profilebrowser import render_profile_browser
 from views.like_browser import render_like_browser
 from views.premium_profile_browser import render_premium_profile_browser
+from views.donor_profile import render_donor_profile_page
+from views.register_representative import render_register_representative_page
+from views.register_donor import render_register_donor_page
 from helpers.auth import is_authenticated
 from views.login import render_login_page
 
@@ -40,8 +43,16 @@ st.session_state.s3_available = _s3_available
 
 # ----- AUTHENTICATION CHECK -----
 if not is_authenticated():
-    # User is not logged in, show login page
-    render_login_page()
+    # User is not logged in - check if they want to register
+    page = st.session_state.get("page", "login")
+    
+    if page == "register_representative":
+        render_register_representative_page()
+    elif page == "register_donor":
+        render_register_donor_page()
+    else:
+        # Default to login page
+        render_login_page()
 else:
     # User is authenticated, show the app
     # ----- SIDEBAR NAVIGATION -----
@@ -58,6 +69,13 @@ else:
         render_premium_profile_browser()
     elif current_page == "profile":
         render_profile_page()
+    elif current_page == "donorprofile":
+        render_donor_profile_page()
     else:
-        render_profile_page()  # Default to profile page
+        # Default based on user type
+        user_type = st.session_state.get("user_type", "representative")
+        if user_type == "donor":
+            render_donor_profile_page()
+        else:
+            render_profile_page()
 

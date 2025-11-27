@@ -31,6 +31,9 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     
+    # User type: "representative" or "donor"
+    user_type = Column(String(50), nullable=False, default="representative", server_default="representative")
+    
     # Account tier for feature gating (e.g., "free", "premium", "enterprise")
     account_tier = Column(String(50), nullable=False, default="free", server_default="free")
     
@@ -44,6 +47,7 @@ class User(Base):
     # Relationships
     proposals = relationship("ProposalSubmission", back_populates="user", cascade="all, delete-orphan")
     actions = relationship("ProposalAction", back_populates="user", cascade="all, delete-orphan")
+    donor_profile = relationship("DonorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
     def set_password(self, password):
         """Hash and set the user's password."""
@@ -120,6 +124,32 @@ class ProposalAction(Base):
     user = relationship("User", back_populates="actions")
 
 
+class DonorProfile(Base):
+    """
+    Table to store donor profiles and preferences.
+    """
+    __tablename__ = "donor_profiles"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign key to user
+    user_id = Column(Integer, ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    
+    # Donor preferences
+    primary_cause_areas = Column(JSON, nullable=True)  # List of strings
+    populations = Column(JSON, nullable=True)  # List of strings
+    geographic_focus = Column(String(255), nullable=True)
+    donation_style = Column(JSON, nullable=True)  # List of strings (one-time, recurring, operating support)
+    organization_characteristics = Column(JSON, nullable=True)  # List of strings (large vs small, etc)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User", back_populates="donor_profile")
+
+
 def migrate_add_col():
     """
     Migration: Add stripe_customer_id column to app_users table if it doesn't exist.
@@ -145,6 +175,30 @@ def migrate_add_col():
         print(f"ℹ️ Migration check: {str(e)}")
 
 
+def migrate_add_user_type():
+    """
+    Migration: Add user_type column to app_users table if it doesn't exist.
+    """
+    try:
+        inspector = inspect(engine)
+        columns = [col['name'] for col in inspector.get_columns('app_users')]
+        
+        if 'user_type' not in columns:
+            # Column doesn't exist, add it
+            with engine.connect() as conn:
+                # Add the column with default value 'representative' (for backward compatibility)
+                conn.execute(
+                    text("ALTER TABLE app_users ADD COLUMN user_type VARCHAR(50) NOT NULL DEFAULT 'representative'")
+                )
+                conn.commit()
+            print("✅ Migration: Added user_type column to app_users table")
+        else:
+            print("ℹ️ Migration: user_type column already exists")
+    except Exception as e:
+        # Table might not exist yet, or other error - that's okay, init_db will handle it
+        print(f"ℹ️ Migration check: {str(e)}")
+
+
 def init_db():
     """
     Initialize the database by creating all tables.
@@ -158,6 +212,7 @@ def init_db():
     
     # Run migrations to add new columns to existing tables
     migrate_add_col()
+    migrate_add_user_type()
 
 
 # unused thus far
