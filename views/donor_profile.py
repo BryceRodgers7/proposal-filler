@@ -88,19 +88,23 @@ def render_donor_profile_page():
     
     st.markdown("---")
     
-    # Form fields
-    dpd = st.session_state.donor_profile_data
-    
+    # Form fields - use widget keys to avoid state conflicts
     st.subheader("Cause Areas")
     st.write("What causes are you most passionate about?")
-    current_cause_areas = dpd.get("primary_cause_areas", [])
-    if not isinstance(current_cause_areas, list):
-        current_cause_areas = []
-    current_cause_areas = [area for area in current_cause_areas if area in PRIMARY_CAUSE_AREAS]
-    dpd["primary_cause_areas"] = st.multiselect(
+    
+    # Initialize widget keys if not present
+    if "donor_primary_cause_areas" not in st.session_state:
+        dpd = st.session_state.donor_profile_data
+        current_cause_areas = dpd.get("primary_cause_areas", [])
+        if isinstance(current_cause_areas, list):
+            st.session_state.donor_primary_cause_areas = [area for area in current_cause_areas if area in PRIMARY_CAUSE_AREAS]
+        else:
+            st.session_state.donor_primary_cause_areas = []
+    
+    primary_cause_areas = st.multiselect(
         "Primary cause areas",
         options=PRIMARY_CAUSE_AREAS,
-        default=current_cause_areas,
+        key="donor_primary_cause_areas",
         help="Select all that apply"
     )
     
@@ -108,14 +112,19 @@ def render_donor_profile_page():
     
     st.subheader("Populations")
     st.write("Which populations would you like to support?")
-    current_populations = dpd.get("populations", [])
-    if not isinstance(current_populations, list):
-        current_populations = []
-    current_populations = [pop for pop in current_populations if pop in POPULATIONS]
-    dpd["populations"] = st.multiselect(
+    
+    if "donor_populations" not in st.session_state:
+        dpd = st.session_state.donor_profile_data
+        current_populations = dpd.get("populations", [])
+        if isinstance(current_populations, list):
+            st.session_state.donor_populations = [pop for pop in current_populations if pop in POPULATIONS]
+        else:
+            st.session_state.donor_populations = []
+    
+    populations = st.multiselect(
         "Populations served",
         options=POPULATIONS,
-        default=current_populations,
+        key="donor_populations",
         help="Select all that apply"
     )
     
@@ -123,36 +132,46 @@ def render_donor_profile_page():
     
     st.subheader("Geographic Focus")
     st.write("Where would you like your donations to have impact?")
-    current_geographic_focus = dpd.get("geographic_focus", "")
-    if not isinstance(current_geographic_focus, str):
-        current_geographic_focus = ""
-    if current_geographic_focus not in GEOGRAPHIC_FOCUS_OPTIONS:
-        current_geographic_focus = ""
     
-    if current_geographic_focus and current_geographic_focus in GEOGRAPHIC_FOCUS_OPTIONS:
-        geo_index = GEOGRAPHIC_FOCUS_OPTIONS.index(current_geographic_focus) + 1
+    if "donor_geographic_focus" not in st.session_state:
+        dpd = st.session_state.donor_profile_data
+        current_geographic_focus = dpd.get("geographic_focus", "")
+        if isinstance(current_geographic_focus, str) and current_geographic_focus in GEOGRAPHIC_FOCUS_OPTIONS:
+            st.session_state.donor_geographic_focus = current_geographic_focus
+        else:
+            st.session_state.donor_geographic_focus = ""
+    
+    current_geo_focus = st.session_state.donor_geographic_focus
+    if current_geo_focus and current_geo_focus in GEOGRAPHIC_FOCUS_OPTIONS:
+        geo_index = GEOGRAPHIC_FOCUS_OPTIONS.index(current_geo_focus) + 1
     else:
         geo_index = 0
     
-    dpd["geographic_focus"] = st.selectbox(
+    geographic_focus = st.selectbox(
         "Geographic focus",
         options=[""] + GEOGRAPHIC_FOCUS_OPTIONS,
         index=geo_index,
-        format_func=lambda x: "Select..." if x == "" else x
+        format_func=lambda x: "Select..." if x == "" else x,
+        key="donor_geographic_focus_selector"
     )
     
     st.markdown("---")
     
     st.subheader("Donation Style")
     st.write("How do you prefer to give?")
-    current_donation_style = dpd.get("donation_style", [])
-    if not isinstance(current_donation_style, list):
-        current_donation_style = []
-    current_donation_style = [style for style in current_donation_style if style in DONATION_STYLE_OPTIONS]
-    dpd["donation_style"] = st.multiselect(
+    
+    if "donor_donation_style" not in st.session_state:
+        dpd = st.session_state.donor_profile_data
+        current_donation_style = dpd.get("donation_style", [])
+        if isinstance(current_donation_style, list):
+            st.session_state.donor_donation_style = [style for style in current_donation_style if style in DONATION_STYLE_OPTIONS]
+        else:
+            st.session_state.donor_donation_style = []
+    
+    donation_style = st.multiselect(
         "Donation style preferences",
         options=DONATION_STYLE_OPTIONS,
-        default=current_donation_style,
+        key="donor_donation_style",
         help="Select all that apply"
     )
     
@@ -160,18 +179,21 @@ def render_donor_profile_page():
     
     st.subheader("Organization Characteristics")
     st.write("What types of organizations do you prefer to support?")
-    current_org_chars = dpd.get("organization_characteristics", [])
-    if not isinstance(current_org_chars, list):
-        current_org_chars = []
-    current_org_chars = [char for char in current_org_chars if char in ORGANIZATION_CHARACTERISTICS_OPTIONS]
-    dpd["organization_characteristics"] = st.multiselect(
+    
+    if "donor_org_characteristics" not in st.session_state:
+        dpd = st.session_state.donor_profile_data
+        current_org_chars = dpd.get("organization_characteristics", [])
+        if isinstance(current_org_chars, list):
+            st.session_state.donor_org_characteristics = [char for char in current_org_chars if char in ORGANIZATION_CHARACTERISTICS_OPTIONS]
+        else:
+            st.session_state.donor_org_characteristics = []
+    
+    organization_characteristics = st.multiselect(
         "Organization characteristics",
         options=ORGANIZATION_CHARACTERISTICS_OPTIONS,
-        default=current_org_chars,
+        key="donor_org_characteristics",
         help="Select all that apply"
     )
-    
-    st.session_state.donor_profile_data = dpd
     
     st.markdown("---")
     
@@ -180,26 +202,40 @@ def render_donor_profile_page():
         try:
             db = next(get_db())
             
+            # Get values from widget keys (not from geographic_focus_selector)
+            geo_focus_value = st.session_state.get("donor_geographic_focus_selector", "")
+            
             if existing_profile:
                 # Update existing profile
-                existing_profile.primary_cause_areas = dpd.get("primary_cause_areas", [])
-                existing_profile.populations = dpd.get("populations", [])
-                existing_profile.geographic_focus = dpd.get("geographic_focus", "")
-                existing_profile.donation_style = dpd.get("donation_style", [])
-                existing_profile.organization_characteristics = dpd.get("organization_characteristics", [])
+                existing_profile.primary_cause_areas = primary_cause_areas
+                existing_profile.populations = populations
+                existing_profile.geographic_focus = geo_focus_value
+                existing_profile.donation_style = donation_style
+                existing_profile.organization_characteristics = organization_characteristics
             else:
                 # Create new profile
                 new_profile = DonorProfile(
                     user_id=user_id,
-                    primary_cause_areas=dpd.get("primary_cause_areas", []),
-                    populations=dpd.get("populations", []),
-                    geographic_focus=dpd.get("geographic_focus", ""),
-                    donation_style=dpd.get("donation_style", []),
-                    organization_characteristics=dpd.get("organization_characteristics", [])
+                    primary_cause_areas=primary_cause_areas,
+                    populations=populations,
+                    geographic_focus=geo_focus_value,
+                    donation_style=donation_style,
+                    organization_characteristics=organization_characteristics
                 )
                 db.add(new_profile)
             
             db.commit()
+            
+            # Update the main session state data for consistency
+            # Note: We don't update the individual widget keys as they're managed by Streamlit
+            st.session_state.donor_profile_data = {
+                "primary_cause_areas": primary_cause_areas,
+                "populations": populations,
+                "geographic_focus": geo_focus_value,
+                "donation_style": donation_style,
+                "organization_characteristics": organization_characteristics
+            }
+            
             st.success("✅ Donor profile saved successfully!")
             
         except Exception as e:
