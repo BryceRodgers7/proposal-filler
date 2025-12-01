@@ -43,10 +43,10 @@ def render_sidebar():
         # Set default page for representatives
         default_page = "profile"
     elif user_type == "donor":
-        # Donors see: My Donor Profile, Browse Organizations (tinderish), Profile Browser, Like Browser
+        # Donors see: My Donor Profile, Tinder-ish, Profile Browser, Like Browser
         pages = {
             "💰 My Donor Profile": "donorprofile",
-            "🎴 Browse Organizations": "tinderish",
+            "🎴 Tinder-ish": "tinderish",
             "📋 Profile Browser": "profilebrowser",
             "❤️ Like Browser": "likebrowser"
         }
