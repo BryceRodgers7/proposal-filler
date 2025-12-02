@@ -87,6 +87,9 @@ class ProposalSubmission(Base):
     populations = Column(JSON, nullable=True)  # List of strings
     geographic_focus = Column(String(255), nullable=True)  # Increased from 100 to 255
     
+    # Organization image (S3 path)
+    image_path = Column(String(500), nullable=True)  # S3 key for organization logo/image
+    
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -150,55 +153,6 @@ class DonorProfile(Base):
     user = relationship("User", back_populates="donor_profile")
 
 
-def migrate_add_col():
-    """
-    Migration: Add stripe_customer_id column to app_users table if it doesn't exist.
-    This allows adding new columns without recreating the table.
-    """
-    try:
-        inspector = inspect(engine)
-        columns = [col['name'] for col in inspector.get_columns('app_users')]
-        
-        if 'stripe_customer_id' not in columns:
-            # Column doesn't exist, add it
-            with engine.connect() as conn:
-                # Add the column with a blank default value (nullable)
-                conn.execute(
-                    text("ALTER TABLE app_users ADD COLUMN stripe_customer_id VARCHAR(255) DEFAULT ''")
-                )
-                conn.commit()
-            print("✅ Migration: Added stripe_customer_id column to app_users table")
-        else:
-            print("ℹ️ Migration: stripe_customer_id column already exists")
-    except Exception as e:
-        # Table might not exist yet, or other error - that's okay, init_db will handle it
-        print(f"ℹ️ Migration check: {str(e)}")
-
-
-def migrate_add_user_type():
-    """
-    Migration: Add user_type column to app_users table if it doesn't exist.
-    """
-    try:
-        inspector = inspect(engine)
-        columns = [col['name'] for col in inspector.get_columns('app_users')]
-        
-        if 'user_type' not in columns:
-            # Column doesn't exist, add it
-            with engine.connect() as conn:
-                # Add the column with default value 'representative' (for backward compatibility)
-                conn.execute(
-                    text("ALTER TABLE app_users ADD COLUMN user_type VARCHAR(50) NOT NULL DEFAULT 'representative'")
-                )
-                conn.commit()
-            print("✅ Migration: Added user_type column to app_users table")
-        else:
-            print("ℹ️ Migration: user_type column already exists")
-    except Exception as e:
-        # Table might not exist yet, or other error - that's okay, init_db will handle it
-        print(f"ℹ️ Migration check: {str(e)}")
-
-
 def init_db():
     """
     Initialize the database by creating all tables.
@@ -209,10 +163,6 @@ def init_db():
     
     # Create all tables (only creates if they don't exist)
     Base.metadata.create_all(bind=engine)
-    
-    # Run migrations to add new columns to existing tables
-    migrate_add_col()
-    migrate_add_user_type()
 
 
 # unused thus far

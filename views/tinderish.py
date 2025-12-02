@@ -1,6 +1,7 @@
 import streamlit as st
 from helpers.db import get_db, ProposalSubmission, ProposalAction, DonorProfile
 from helpers.auth import get_current_user_id
+from helpers.storage import get_s3_url
 
 
 def calculate_match_score(proposal, donor_profile):
@@ -175,6 +176,26 @@ def render_tinderish():
     
     # Create a card-style container for the profile
     st.markdown("---")
+    
+    # Display organization image if available
+    if current_proposal.image_path:
+        try:
+            image_url, error_msg = get_s3_url(current_proposal.image_path)
+            if image_url:
+                # Center the image and make it responsive
+                col1, col2, col3 = st.columns([1, 3, 1])
+                with col2:
+                    st.image(image_url, use_column_width=True, caption="")
+            else:
+                st.warning(f"📷 Could not load organization image")
+                with st.expander("🔍 Debug - Why image didn't load"):
+                    st.error(error_msg)
+                    st.code(f"S3 Key: {current_proposal.image_path}\nOrg ID: {current_proposal.id}")
+        except Exception as e:
+            st.error(f"Exception loading organization image: {str(e)}")
+            with st.expander("🔍 Debug - Exception Details"):
+                import traceback
+                st.code(traceback.format_exc())
     
     # Profile card with custom styling
     org_name = current_proposal.full_organization_name or 'Unnamed Organization'
