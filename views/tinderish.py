@@ -177,201 +177,199 @@ def render_tinderish():
     # Create a card-style container for the profile
     st.markdown("---")
     
-    # Display organization image if available
-    if current_proposal.image_path:
-        try:
-            image_url, error_msg = get_s3_url(current_proposal.image_path)
-            if image_url:
-                # Center the image and make it responsive
-                col1, col2, col3 = st.columns([1, 3, 1])
-                with col2:
+    # Three-column layout: Pass button | Profile content | Like button
+    col_pass, col_profile, col_like = st.columns([1, 4, 1])
+    
+    # MIDDLE COLUMN - Profile Content
+    with col_profile:
+        # Display organization image if available
+        if current_proposal.image_path:
+            try:
+                image_url, error_msg = get_s3_url(current_proposal.image_path)
+                if image_url:
                     st.image(image_url, use_column_width=True, caption="")
-            else:
-                st.warning(f"📷 Could not load organization image")
-                with st.expander("🔍 Debug - Why image didn't load"):
-                    st.error(error_msg)
-                    st.code(f"S3 Key: {current_proposal.image_path}\nOrg ID: {current_proposal.id}")
-        except Exception as e:
-            st.error(f"Exception loading organization image: {str(e)}")
-            with st.expander("🔍 Debug - Exception Details"):
-                import traceback
-                st.code(traceback.format_exc())
-    
-    # Profile card with custom styling
-    org_name = current_proposal.full_organization_name or 'Unnamed Organization'
-    
-    # Prepare additional fields - escape HTML to prevent injection
-    import html
-    org_name_escaped = html.escape(str(org_name))
-    legal_designation = html.escape(str(current_proposal.legal_designation or 'Not specified'))
-    what_we_do = html.escape(str(current_proposal.what_we_do_in_one_sentence or 'Not specified'))
-    biggest_accomplishment = html.escape(str(current_proposal.biggest_accomplishment or 'Not specified'))
-    location_served = html.escape(str(current_proposal.location_served or 'Not specified'))
-    geographic_focus = html.escape(str(current_proposal.geographic_focus or 'Not specified'))
-    
-    # Format cause areas and populations for display
-    cause_areas_display = "Not specified"
-    if current_proposal.primary_cause_area and isinstance(current_proposal.primary_cause_area, list):
-        cause_areas_display = ", ".join(current_proposal.primary_cause_area)
-    cause_areas_display = html.escape(cause_areas_display)
-    
-    populations_display = "Not specified"
-    if current_proposal.populations and isinstance(current_proposal.populations, list):
-        populations_display = ", ".join(current_proposal.populations)
-    populations_display = html.escape(populations_display)
-    
-    # Create a styled box with all content in a single HTML block
-    profile_html = f"""
-    <div style="background-color: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 10px; padding: 25px; margin: 20px 0;">
-        <h3 style="color: #1f77b4; margin-top: 0;">{org_name_escaped}</h3>
-        <hr style="border: 1px solid #e0e0e0; margin: 15px 0;">
-        <p><strong>🏛️ Legal Designation:</strong><br>{legal_designation}</p>
-        <p><strong>💼 What we do:</strong><br>{what_we_do}</p>
-        <p><strong>🏆 Biggest Accomplishment:</strong><br>{biggest_accomplishment}</p>
-        <p><strong>🎯 Cause Areas:</strong><br>{cause_areas_display}</p>
-        <p><strong>👥 Populations Served:</strong><br>{populations_display}</p>
-        <p><strong>📍 Location Served:</strong><br>{location_served}</p>
-        <p><strong>🌍 Geographic Focus:</strong><br>{geographic_focus}</p>
-        <hr style="border: 1px solid #e0e0e0; margin: 15px 0;">
-        <p style="font-size: 0.9em; color: #666; text-align: center; margin-bottom: 0;">Database ID: {current_proposal.id}</p>
-    </div>
-    """
-    
-    st.markdown(profile_html, unsafe_allow_html=True)
-    
-    # Show match details for donors with a profile
-    if donor_profile:
-        with st.expander("🔍 See why this matches your preferences", expanded=False):
-            # Check cause areas overlap
-            proposal_causes = current_proposal.primary_cause_area if isinstance(current_proposal.primary_cause_area, list) else []
-            donor_causes = donor_profile.primary_cause_areas if isinstance(donor_profile.primary_cause_areas, list) else []
-            overlapping_causes = set(proposal_causes) & set(donor_causes) if proposal_causes and donor_causes else set()
-            
-            # Check populations overlap
-            proposal_pops = current_proposal.populations if isinstance(current_proposal.populations, list) else []
-            donor_pops = donor_profile.populations if isinstance(donor_profile.populations, list) else []
-            overlapping_pops = set(proposal_pops) & set(donor_pops) if proposal_pops and donor_pops else set()
-            
-            # Check geographic focus
-            proposal_geo = current_proposal.geographic_focus or ""
-            donor_geo = donor_profile.geographic_focus or ""
-            geo_match = proposal_geo and donor_geo and proposal_geo == donor_geo
-            
-            # Display matches - always show all categories
-            if overlapping_causes:
-                st.markdown(f"✅ **Matching Cause Areas:** {', '.join(overlapping_causes)}")
-            elif donor_causes and proposal_causes:
-                st.markdown(f"⚪ **Cause Areas:** No overlap with your preferences")
-            elif donor_causes:
-                st.markdown(f"⚪ **Cause Areas:** Organization has not specified cause areas")
-            elif proposal_causes:
-                st.markdown(f"⚪ **Cause Areas:** You have not set cause area preferences")
-            else:
-                st.markdown(f"⚪ **Cause Areas:** No data to compare")
-            
-            if overlapping_pops:
-                st.markdown(f"✅ **Matching Populations:** {', '.join(overlapping_pops)}")
-            elif donor_pops and proposal_pops:
-                st.markdown(f"⚪ **Populations:** No overlap with your preferences")
-            elif donor_pops:
-                st.markdown(f"⚪ **Populations:** Organization has not specified populations served")
-            elif proposal_pops:
-                st.markdown(f"⚪ **Populations:** You have not set population preferences")
-            else:
-                st.markdown(f"⚪ **Populations:** No data to compare")
-            
-            if geo_match:
-                st.markdown(f"✅ **Geographic Focus:** {proposal_geo} (matches your preference)")
-            elif donor_geo and proposal_geo:
-                st.markdown(f"⚪ **Geographic Focus:** {proposal_geo} (you prefer {donor_geo})")
-            elif donor_geo:
-                st.markdown(f"⚪ **Geographic Focus:** Organization has not specified ({donor_geo} is your preference)")
-            elif proposal_geo:
-                st.markdown(f"⚪ **Geographic Focus:** You have not set a geographic preference ({proposal_geo} is theirs)")
-            else:
-                st.markdown(f"⚪ **Geographic Focus:** No data to compare")
-    
-    st.markdown("")
-    
-    # Like and Pass buttons
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
-        button_col1, button_col2 = st.columns(2)
+                else:
+                    st.warning(f"📷 Could not load organization image")
+                    with st.expander("🔍 Debug - Why image didn't load"):
+                        st.error(error_msg)
+                        st.code(f"S3 Key: {current_proposal.image_path}\nOrg ID: {current_proposal.id}")
+            except Exception as e:
+                st.error(f"Exception loading organization image: {str(e)}")
+                with st.expander("🔍 Debug - Exception Details"):
+                    import traceback
+                    st.code(traceback.format_exc())
         
-        with button_col1:
-            if st.button("❌ Pass", type="secondary", use_container_width=True):
-                # Save or update pass action in database
-                db = None
-                try:
-                    db = next(get_db())
-                    # Check if action already exists for this proposal and user
-                    existing_action = db.query(ProposalAction).filter(
-                        ProposalAction.proposal_id == current_proposal.id,
-                        ProposalAction.user_id == user_id
-                    ).first()
-                    
-                    if existing_action:
-                        # Update existing action
-                        existing_action.action_type = "pass"
-                    else:
-                        # Create new action
-                        action = ProposalAction(
-                            proposal_id=current_proposal.id,
-                            user_id=user_id,
-                            action_type="pass"
-                        )
-                        db.add(action)
-                    db.commit()
-                except Exception as e:
-                    if db:
-                        db.rollback()
-                    st.error(f"Error saving pass: {str(e)}")
-                    # Continue even if save fails
-                finally:
-                    if db:
-                        db.close()
-                
-                # Move to next profile
-                st.session_state.deck_index = (st.session_state.deck_index + 1) % len(proposals)
-                st.rerun()
+        # Profile card with custom styling
+        org_name = current_proposal.full_organization_name or 'Unnamed Organization'
         
-        with button_col2:
-            if st.button("❤️ Like", type="primary", use_container_width=True):
-                # Save or update like action in database
-                db = None
-                try:
-                    db = next(get_db())
-                    # Check if action already exists for this proposal and user
-                    existing_action = db.query(ProposalAction).filter(
-                        ProposalAction.proposal_id == current_proposal.id,
-                        ProposalAction.user_id == user_id
-                    ).first()
-                    
-                    if existing_action:
-                        # Update existing action
-                        existing_action.action_type = "like"
-                    else:
-                        # Create new action
-                        action = ProposalAction(
-                            proposal_id=current_proposal.id,
-                            user_id=user_id,
-                            action_type="like"
-                        )
-                        db.add(action)
-                    db.commit()
-                except Exception as e:
-                    if db:
-                        db.rollback()
-                    st.error(f"Error saving like: {str(e)}")
-                    # Continue even if save fails
-                finally:
-                    if db:
-                        db.close()
+        # Prepare additional fields - escape HTML to prevent injection
+        import html
+        org_name_escaped = html.escape(str(org_name))
+        legal_designation = html.escape(str(current_proposal.legal_designation or 'Not specified'))
+        what_we_do = html.escape(str(current_proposal.what_we_do_in_one_sentence or 'Not specified'))
+        biggest_accomplishment = html.escape(str(current_proposal.biggest_accomplishment or 'Not specified'))
+        location_served = html.escape(str(current_proposal.location_served or 'Not specified'))
+        geographic_focus = html.escape(str(current_proposal.geographic_focus or 'Not specified'))
+        
+        # Format cause areas and populations for display
+        cause_areas_display = "Not specified"
+        if current_proposal.primary_cause_area and isinstance(current_proposal.primary_cause_area, list):
+            cause_areas_display = ", ".join(current_proposal.primary_cause_area)
+        cause_areas_display = html.escape(cause_areas_display)
+        
+        populations_display = "Not specified"
+        if current_proposal.populations and isinstance(current_proposal.populations, list):
+            populations_display = ", ".join(current_proposal.populations)
+        populations_display = html.escape(populations_display)
+        
+        # Create a styled box with all content in a single HTML block
+        profile_html = f"""
+        <div style="background-color: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 10px; padding: 25px; margin: 20px 0;">
+            <h3 style="color: #1f77b4; margin-top: 0;">{org_name_escaped}</h3>
+            <hr style="border: 1px solid #e0e0e0; margin: 15px 0;">
+            <p><strong>🏛️ Legal Designation:</strong><br>{legal_designation}</p>
+            <p><strong>💼 What we do:</strong><br>{what_we_do}</p>
+            <p><strong>🏆 Biggest Accomplishment:</strong><br>{biggest_accomplishment}</p>
+            <p><strong>🎯 Cause Areas:</strong><br>{cause_areas_display}</p>
+            <p><strong>👥 Populations Served:</strong><br>{populations_display}</p>
+            <p><strong>📍 Location Served:</strong><br>{location_served}</p>
+            <p><strong>🌍 Geographic Focus:</strong><br>{geographic_focus}</p>
+            <hr style="border: 1px solid #e0e0e0; margin: 15px 0;">
+            <p style="font-size: 0.9em; color: #666; text-align: center; margin-bottom: 0;">Database ID: {current_proposal.id}</p>
+        </div>
+        """
+        
+        st.markdown(profile_html, unsafe_allow_html=True)
+        
+        # Show match details for donors with a profile
+        if donor_profile:
+            with st.expander("🔍 See why this matches your preferences", expanded=False):
+                # Check cause areas overlap
+                proposal_causes = current_proposal.primary_cause_area if isinstance(current_proposal.primary_cause_area, list) else []
+                donor_causes = donor_profile.primary_cause_areas if isinstance(donor_profile.primary_cause_areas, list) else []
+                overlapping_causes = set(proposal_causes) & set(donor_causes) if proposal_causes and donor_causes else set()
                 
-                # Move to next profile
-                st.session_state.deck_index = (st.session_state.deck_index + 1) % len(proposals)
-                st.rerun()
+                # Check populations overlap
+                proposal_pops = current_proposal.populations if isinstance(current_proposal.populations, list) else []
+                donor_pops = donor_profile.populations if isinstance(donor_profile.populations, list) else []
+                overlapping_pops = set(proposal_pops) & set(donor_pops) if proposal_pops and donor_pops else set()
+                
+                # Check geographic focus
+                proposal_geo = current_proposal.geographic_focus or ""
+                donor_geo = donor_profile.geographic_focus or ""
+                geo_match = proposal_geo and donor_geo and proposal_geo == donor_geo
+                
+                # Display matches - always show all categories
+                if overlapping_causes:
+                    st.markdown(f"✅ **Matching Cause Areas:** {', '.join(overlapping_causes)}")
+                elif donor_causes and proposal_causes:
+                    st.markdown(f"⚪ **Cause Areas:** No overlap with your preferences")
+                elif donor_causes:
+                    st.markdown(f"⚪ **Cause Areas:** Organization has not specified cause areas")
+                elif proposal_causes:
+                    st.markdown(f"⚪ **Cause Areas:** You have not set cause area preferences")
+                else:
+                    st.markdown(f"⚪ **Cause Areas:** No data to compare")
+                
+                if overlapping_pops:
+                    st.markdown(f"✅ **Matching Populations:** {', '.join(overlapping_pops)}")
+                elif donor_pops and proposal_pops:
+                    st.markdown(f"⚪ **Populations:** No overlap with your preferences")
+                elif donor_pops:
+                    st.markdown(f"⚪ **Populations:** Organization has not specified populations served")
+                elif proposal_pops:
+                    st.markdown(f"⚪ **Populations:** You have not set population preferences")
+                else:
+                    st.markdown(f"⚪ **Populations:** No data to compare")
+                
+                if geo_match:
+                    st.markdown(f"✅ **Geographic Focus:** {proposal_geo} (matches your preference)")
+                elif donor_geo and proposal_geo:
+                    st.markdown(f"⚪ **Geographic Focus:** {proposal_geo} (you prefer {donor_geo})")
+                elif donor_geo:
+                    st.markdown(f"⚪ **Geographic Focus:** Organization has not specified ({donor_geo} is your preference)")
+                elif proposal_geo:
+                    st.markdown(f"⚪ **Geographic Focus:** You have not set a geographic preference ({proposal_geo} is theirs)")
+                else:
+                    st.markdown(f"⚪ **Geographic Focus:** No data to compare")
+    
+    # LEFT COLUMN - Pass Button
+    with col_pass:
+        st.markdown("<br>" * 10, unsafe_allow_html=True)  # Vertical spacing to center button
+        if st.button("❌\n\nPass", type="secondary", use_container_width=True, key="pass_button"):
+            # Save or update pass action in database
+            db = None
+            try:
+                db = next(get_db())
+                # Check if action already exists for this proposal and user
+                existing_action = db.query(ProposalAction).filter(
+                    ProposalAction.proposal_id == current_proposal.id,
+                    ProposalAction.user_id == user_id
+                ).first()
+                
+                if existing_action:
+                    # Update existing action
+                    existing_action.action_type = "pass"
+                else:
+                    # Create new action
+                    action = ProposalAction(
+                        proposal_id=current_proposal.id,
+                        user_id=user_id,
+                        action_type="pass"
+                    )
+                    db.add(action)
+                db.commit()
+            except Exception as e:
+                if db:
+                    db.rollback()
+                st.error(f"Error saving pass: {str(e)}")
+                # Continue even if save fails
+            finally:
+                if db:
+                    db.close()
+            
+            # Move to next profile
+            st.session_state.deck_index = (st.session_state.deck_index + 1) % len(proposals)
+            st.rerun()
+    
+    # RIGHT COLUMN - Like Button
+    with col_like:
+        st.markdown("<br>" * 10, unsafe_allow_html=True)  # Vertical spacing to center button
+        if st.button("❤️\n\nLike", type="primary", use_container_width=True, key="like_button"):
+            # Save or update like action in database
+            db = None
+            try:
+                db = next(get_db())
+                # Check if action already exists for this proposal and user
+                existing_action = db.query(ProposalAction).filter(
+                    ProposalAction.proposal_id == current_proposal.id,
+                    ProposalAction.user_id == user_id
+                ).first()
+                
+                if existing_action:
+                    # Update existing action
+                    existing_action.action_type = "like"
+                else:
+                    # Create new action
+                    action = ProposalAction(
+                        proposal_id=current_proposal.id,
+                        user_id=user_id,
+                        action_type="like"
+                    )
+                    db.add(action)
+                db.commit()
+            except Exception as e:
+                if db:
+                    db.rollback()
+                st.error(f"Error saving like: {str(e)}")
+                # Continue even if save fails
+            finally:
+                if db:
+                    db.close()
+            
+            # Move to next profile
+            st.session_state.deck_index = (st.session_state.deck_index + 1) % len(proposals)
+            st.rerun()
     
     # Add a reset button to go back to the beginning and rebuild deck
     st.markdown("<br>", unsafe_allow_html=True)

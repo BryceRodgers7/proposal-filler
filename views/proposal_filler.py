@@ -206,6 +206,84 @@ def render_profile_page():
     elif st.session_state.get("no_profile_yet", False):
         st.info("👋 Welcome! You don't have a profile yet. Upload a proposal file below to get started, or fill out the form manually.")
     
+    # --- SECTION 1: Organization Image Upload ---
+    st.markdown("---")
+    st.subheader("🖼️ Organization Image")
+    st.write("Upload a logo or image for your organization (recommended size: 800x600px or similar)")
+    
+    col_img1, col_img2 = st.columns(2)
+    
+    with col_img1:
+        # Display current image if it exists
+        if existing_submission and existing_submission.image_path:
+            st.write("**Current Saved Image:**")
+            st.caption(f"S3 Key: `{existing_submission.image_path}`")
+            try:
+                image_url, error_msg = get_s3_url(existing_submission.image_path)
+                if image_url:
+                    st.image(image_url, width=300, caption="Current organization image")
+                    with st.expander("🔍 Debug Info"):
+                        st.code(f"S3 Key: {existing_submission.image_path}\nURL: {image_url}")
+                else:
+                    st.error(f"Could not load image: {error_msg}")
+                    with st.expander("🔍 Debug Info"):
+                        st.code(f"S3 Key: {existing_submission.image_path}\nError: {error_msg}")
+            except Exception as e:
+                st.error(f"Exception loading image: {str(e)}")
+                st.code(traceback.format_exc())
+        else:
+            st.info("No image uploaded yet")
+    
+    with col_img2:
+        # Image upload widget
+        uploaded_image = st.file_uploader(
+            "Upload new image (JPG, PNG, or GIF)",
+            type=["jpg", "jpeg", "png", "gif"],
+            key="org_image_uploader",
+            help="Image will be automatically resized to fit the page. Recommended aspect ratio: 4:3"
+        )
+        
+        # Preview the newly uploaded image before saving
+        if uploaded_image is not None:
+            st.write("**Preview of New Image:**")
+            st.image(uploaded_image, width=300, caption=uploaded_image.name)
+            st.session_state.uploaded_image = uploaded_image
+            
+            # Button to save just the image
+            if st.button("💾 Save Image Only", type="secondary", key="save_image_only"):
+                if existing_submission:
+                    if s3_available:
+                        try:
+                            with st.spinner("Uploading image..."):
+                                # Upload image to S3
+                                image_s3_path = upload_organization_image(
+                                    st.session_state.uploaded_image,
+                                    existing_submission.id
+                                )
+                                
+                                if image_s3_path:
+                                    # Update submission with image path
+                                    db = next(get_db())
+                                    existing_submission.image_path = image_s3_path
+                                    db.add(existing_submission)
+                                    db.commit()
+                                    db.close()
+                                    st.success(f"✅ Organization image uploaded successfully!")
+                                    # Clear the uploaded image from session state
+                                    del st.session_state.uploaded_image
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Could not upload organization image to S3")
+                        except Exception as img_e:
+                            st.error(f"❌ Error uploading image: {str(img_e)}")
+                    else:
+                        st.error("❌ S3 storage not available. Cannot upload organization image.")
+                else:
+                    st.warning("⚠️ Please save your profile first before uploading an image.")
+    
+    # --- SECTION 2: Proposal File Upload ---
+    st.markdown("---")
+    st.subheader("📄 Proposal Document Upload")
     st.write(
         "Upload a proposal (PDF, DOCX, or TXT). "
         "The app will use AI to extract key fields into a structured form you can edit."
@@ -274,9 +352,9 @@ def render_profile_page():
             st.session_state.form_data = call_llm_to_structure(text)
         st.success("Extraction complete! Scroll down to review and edit the form.")
 
+    # --- SECTION 3: Structured Form ---
     st.markdown("---")
-
-    st.subheader("Structured Form (Editable)")
+    st.subheader("📝 Structured Form (Editable)")
 
     fd = st.session_state.form_data
 
@@ -352,81 +430,6 @@ def render_profile_page():
 
     st.session_state.form_data = fd
 
-    # --- Organization Image Upload ---
-    st.markdown("---")
-    st.subheader("Organization Image")
-    st.write("Upload a logo or image for your organization (recommended size: 800x600px or similar)")
-    
-    col_img1, col_img2 = st.columns(2)
-    
-    with col_img1:
-        # Display current image if it exists
-        if existing_submission and existing_submission.image_path:
-            st.write("**Current Saved Image:**")
-            st.caption(f"S3 Key: `{existing_submission.image_path}`")
-            try:
-                image_url, error_msg = get_s3_url(existing_submission.image_path)
-                if image_url:
-                    st.image(image_url, width=300, caption="Current organization image")
-                    with st.expander("🔍 Debug Info"):
-                        st.code(f"S3 Key: {existing_submission.image_path}\nURL: {image_url}")
-                else:
-                    st.error(f"Could not load image: {error_msg}")
-                    with st.expander("🔍 Debug Info"):
-                        st.code(f"S3 Key: {existing_submission.image_path}\nError: {error_msg}")
-            except Exception as e:
-                st.error(f"Exception loading image: {str(e)}")
-                st.code(traceback.format_exc())
-        else:
-            st.info("No image uploaded yet")
-    
-    with col_img2:
-        # Image upload widget
-        uploaded_image = st.file_uploader(
-            "Upload new image (JPG, PNG, or GIF)",
-            type=["jpg", "jpeg", "png", "gif"],
-            key="org_image_uploader",
-            help="Image will be automatically resized to fit the page. Recommended aspect ratio: 4:3"
-        )
-        
-        # Preview the newly uploaded image before saving
-        if uploaded_image is not None:
-            st.write("**Preview of New Image:**")
-            st.image(uploaded_image, width=300, caption=uploaded_image.name)
-            st.session_state.uploaded_image = uploaded_image
-            
-            # Button to save just the image
-            if st.button("💾 Save Image Only", type="secondary", key="save_image_only"):
-                if existing_submission:
-                    if s3_available:
-                        try:
-                            with st.spinner("Uploading image..."):
-                                # Upload image to S3
-                                image_s3_path = upload_organization_image(
-                                    st.session_state.uploaded_image,
-                                    existing_submission.id
-                                )
-                                
-                                if image_s3_path:
-                                    # Update submission with image path
-                                    db = next(get_db())
-                                    existing_submission.image_path = image_s3_path
-                                    db.add(existing_submission)
-                                    db.commit()
-                                    db.close()
-                                    st.success(f"✅ Organization image uploaded successfully!")
-                                    # Clear the uploaded image from session state
-                                    del st.session_state.uploaded_image
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Could not upload organization image to S3")
-                        except Exception as img_e:
-                            st.error(f"❌ Error uploading image: {str(img_e)}")
-                    else:
-                        st.error("❌ S3 storage not available. Cannot upload organization image.")
-                else:
-                    st.warning("⚠️ Please save your profile first before uploading an image.")
-    
     # --- Save to Database button ---
     st.markdown("### Save & Export")
 
