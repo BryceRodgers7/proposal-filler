@@ -145,6 +145,9 @@ class DonorProfile(Base):
     donation_style = Column(JSON, nullable=True)  # List of strings (one-time, recurring, operating support)
     organization_characteristics = Column(JSON, nullable=True)  # List of strings (large vs small, etc)
     
+    # Donor profile image (S3 path)
+    image_path = Column(String(500), nullable=True)  # S3 key for donor profile image
+    
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

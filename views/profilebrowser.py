@@ -1,11 +1,20 @@
 import streamlit as st
 from helpers.db import get_db, ProposalSubmission
+from helpers.auth import get_current_user_type
 
 
 def render_profile_browser():
     """
     Render a read-only browser page for viewing all proposal submissions.
+    Only accessible to admin users.
     """
+    # Check if user is an admin
+    user_type = st.session_state.get("user_type", "")
+    if user_type != "admin":
+        st.title("🔒 Admin Access Required")
+        st.error("❌ This page is only accessible to admin users.")
+        return
+    
     st.title("📋 Profile Browser")
     st.write("Browse all proposal submissions in the database (read-only)")
     

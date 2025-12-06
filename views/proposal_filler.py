@@ -202,9 +202,9 @@ def render_profile_page():
     
     # Show info if editing existing profile
     if "existing_submission_id" in st.session_state:
-        st.info(f"📝 Editing your existing profile (ID: {st.session_state.existing_submission_id}). Upload a new file or edit the fields below.")
+        st.info(f"📝 Edit your existing profile (ID: {st.session_state.existing_submission_id}). Upload a proposal document, organization logo, or edit the fields below.")
     elif st.session_state.get("no_profile_yet", False):
-        st.info("👋 Welcome! You don't have a profile yet. Upload a proposal file below to get started, or fill out the form manually.")
+        st.info("👋 Welcome! You don't have a profile yet. Upload an organization logo below to get started, then upload a proposal document or fill out the form manually.")
     
     # --- SECTION 1: Organization Image Upload ---
     st.markdown("---")
@@ -216,18 +216,17 @@ def render_profile_page():
     with col_img1:
         # Display current image if it exists
         if existing_submission and existing_submission.image_path:
-            st.write("**Current Saved Image:**")
-            st.caption(f"S3 Key: `{existing_submission.image_path}`")
+            st.write("**Organization Logo:**")
             try:
                 image_url, error_msg = get_s3_url(existing_submission.image_path)
                 if image_url:
                     st.image(image_url, width=300, caption="Current organization image")
-                    with st.expander("🔍 Debug Info"):
-                        st.code(f"S3 Key: {existing_submission.image_path}\nURL: {image_url}")
+                    # with st.expander("🔍 Debug Info"):
+                    #     st.code(f"S3 Key: {existing_submission.image_path}\nURL: {image_url}")
                 else:
                     st.error(f"Could not load image: {error_msg}")
-                    with st.expander("🔍 Debug Info"):
-                        st.code(f"S3 Key: {existing_submission.image_path}\nError: {error_msg}")
+                    # with st.expander("🔍 Debug Info"):
+                    #     st.code(f"S3 Key: {existing_submission.image_path}\nError: {error_msg}")
             except Exception as e:
                 st.error(f"Exception loading image: {str(e)}")
                 st.code(traceback.format_exc())
@@ -292,12 +291,12 @@ def render_profile_page():
     uploaded_file = st.file_uploader("Upload proposal", type=["pdf", "docx", "txt"])
 
     # Optional: show the raw text for debugging
-    with st.expander("Show extracted raw text (debug)", expanded=False):
-        if uploaded_file is not None:
-            raw_text = extract_text(uploaded_file)
-            st.text_area("Raw extracted text", raw_text, height=200)
-        else:
-            st.info("Upload a file to see extracted text.")
+    # with st.expander("Show extracted raw text (debug)", expanded=False):
+    #     if uploaded_file is not None:
+    #         raw_text = extract_text(uploaded_file)
+    #         st.text_area("Raw extracted text", raw_text, height=200)
+    #     else:
+    #         st.info("Upload a file to see extracted text.")
 
     # Store uploaded file info in session state
     if uploaded_file is not None:
@@ -564,14 +563,14 @@ def render_profile_page():
                 finally:
                     db.close()
 
-    with col2:
-        download_json = json.dumps(st.session_state.form_data, indent=2)
-        st.download_button(
-            label="📥 Download as JSON",
-            data=download_json,
-            file_name="structured_proposal.json",
-            mime="application/json",
-        )
+    # with col2:
+    #     download_json = json.dumps(st.session_state.form_data, indent=2)
+    #     st.download_button(
+    #         label="📥 Download as JSON",
+    #         data=download_json,
+    #         file_name="structured_proposal.json",
+    #         mime="application/json",
+    #     )
 
         # Show last saved ID if available
         if "last_saved_id" in st.session_state:

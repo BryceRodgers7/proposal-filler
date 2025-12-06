@@ -23,7 +23,7 @@ def render_premium_profile_browser():
         return
     
     st.title("⭐ Premium Profile Browser")
-    st.write("Browse all proposal submissions in the database with premium features (read-only)")
+    st.write("Browse all organization profiles in the database with your premium features (read-only)")
     
     # Fetch all proposals from database
     try:

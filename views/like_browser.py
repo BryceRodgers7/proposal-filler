@@ -1,12 +1,21 @@
 import streamlit as st
 from sqlalchemy.orm import joinedload
 from helpers.db import get_db, ProposalAction, ProposalSubmission, User
+from helpers.auth import get_current_user_type
 
 
 def render_like_browser():
     """
     Render a browser page for viewing all likes and passes (proposal actions).
+    Only accessible to admin users.
     """
+    # Check if user is an admin
+    user_type = st.session_state.get("user_type", "")
+    if user_type != "admin":
+        st.title("🔒 Admin Access Required")
+        st.error("❌ This page is only accessible to admin users.")
+        return
+    
     st.title("❤️ Like Browser")
     st.write("View all likes and passes from all users")
     

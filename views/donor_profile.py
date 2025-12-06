@@ -5,6 +5,7 @@ import streamlit as st
 from helpers.db import get_db, DonorProfile
 from helpers.auth import get_current_user_id
 from helpers.openai_client import PRIMARY_CAUSE_AREAS, POPULATIONS, GEOGRAPHIC_FOCUS_OPTIONS
+from helpers.storage import get_s3_url, upload_file_to_s3, process_image, is_s3_available
 
 # Donor-specific options
 DONATION_STYLE_OPTIONS = [
@@ -85,6 +86,81 @@ def render_donor_profile_page():
         st.info(f"📝 Editing your donor profile. Update your preferences below.")
     else:
         st.info("👋 Welcome! Let's create your donor profile to help match you with organizations.")
+    
+    # Check S3 availability
+    s3_available = is_s3_available()
+    
+    # --- SECTION 1: Profile Image Upload ---
+    st.markdown("---")
+    st.subheader("🖼️ Profile Image")
+    st.write("Upload a profile picture (optional)")
+    
+    col_img1, col_img2 = st.columns(2)
+    
+    with col_img1:
+        # Display current image if it exists
+        if existing_profile and existing_profile.image_path:
+            st.write("**Your Profile Picture:**")
+            try:
+                image_url, error_msg = get_s3_url(existing_profile.image_path)
+                if image_url:
+                    st.image(image_url, width=200, caption="Current profile image")
+                else:
+                    st.error(f"Could not load image: {error_msg}")
+            except Exception as e:
+                st.error(f"Exception loading image: {str(e)}")
+        else:
+            st.info("No profile image uploaded yet")
+    
+    with col_img2:
+        # Image upload widget
+        uploaded_donor_image = st.file_uploader(
+            "Upload new image (JPG, PNG, or GIF)",
+            type=["jpg", "jpeg", "png", "gif"],
+            key="donor_image_uploader",
+            help="Image will be automatically resized. Recommended: square image for best results."
+        )
+        
+        # Preview the newly uploaded image before saving
+        if uploaded_donor_image is not None:
+            st.write("**Preview:**")
+            st.image(uploaded_donor_image, width=200, caption=uploaded_donor_image.name)
+            st.session_state.uploaded_donor_image = uploaded_donor_image
+            
+            # Button to save just the image
+            if st.button("💾 Save Image Only", type="secondary", key="save_donor_image_only"):
+                if existing_profile:
+                    if s3_available:
+                        try:
+                            with st.spinner("Uploading image..."):
+                                # Process and upload image
+                                processed_image, content_type = process_image(uploaded_donor_image)
+                                if processed_image:
+                                    s3_key = f"donor_images/{existing_profile.id}.jpg"
+                                    result = upload_file_to_s3(processed_image, s3_key, content_type)
+                                    
+                                    if result:
+                                        # Update profile with image path
+                                        db = next(get_db())
+                                        existing_profile.image_path = s3_key
+                                        db.add(existing_profile)
+                                        db.commit()
+                                        db.close()
+                                        st.success(f"✅ Profile image uploaded successfully!")
+                                        # Clear the uploaded image from session state
+                                        if "uploaded_donor_image" in st.session_state:
+                                            del st.session_state.uploaded_donor_image
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Could not upload image to S3")
+                                else:
+                                    st.error("❌ Could not process image")
+                        except Exception as img_e:
+                            st.error(f"❌ Error uploading image: {str(img_e)}")
+                    else:
+                        st.error("❌ S3 storage not available. Cannot upload image.")
+                else:
+                    st.warning("⚠️ Please save your profile first before uploading an image.")
     
     st.markdown("---")
     
@@ -212,6 +288,7 @@ def render_donor_profile_page():
                 existing_profile.geographic_focus = geo_focus_value
                 existing_profile.donation_style = donation_style
                 existing_profile.organization_characteristics = organization_characteristics
+                profile_to_use = existing_profile
             else:
                 # Create new profile
                 new_profile = DonorProfile(
@@ -223,8 +300,33 @@ def render_donor_profile_page():
                     organization_characteristics=organization_characteristics
                 )
                 db.add(new_profile)
+                db.commit()
+                db.refresh(new_profile)
+                profile_to_use = new_profile
             
             db.commit()
+            
+            # Handle image upload if present
+            if "uploaded_donor_image" in st.session_state and st.session_state.uploaded_donor_image is not None:
+                if s3_available:
+                    try:
+                        with st.spinner("Uploading image..."):
+                            processed_image, content_type = process_image(st.session_state.uploaded_donor_image)
+                            if processed_image:
+                                s3_key = f"donor_images/{profile_to_use.id}.jpg"
+                                result = upload_file_to_s3(processed_image, s3_key, content_type)
+                                
+                                if result:
+                                    profile_to_use.image_path = s3_key
+                                    db.commit()
+                                    st.success("✅ Profile image uploaded successfully!")
+                                    del st.session_state.uploaded_donor_image
+                                else:
+                                    st.warning("⚠️ Could not upload image to S3")
+                    except Exception as img_e:
+                        st.warning(f"⚠️ Error uploading image: {str(img_e)}")
+                else:
+                    st.warning("⚠️ S3 storage not available. Image not uploaded.")
             
             # Update the main session state data for consistency
             # Note: We don't update the individual widget keys as they're managed by Streamlit
