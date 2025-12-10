@@ -25,10 +25,12 @@ def render_premium_profile_browser():
     st.title("⭐ Premium Profile Browser")
     st.write("Browse all organization profiles in the database with your premium features (read-only)")
     
-    # Fetch ALL proposals from database (including soft-deleted for premium view)
+    # Fetch active proposals only (exclude soft-deleted profiles)
     try:
         db = next(get_db())
-        proposals = db.query(ProposalSubmission).order_by(ProposalSubmission.created_at.desc()).all()
+        proposals = db.query(ProposalSubmission).filter(
+            ProposalSubmission.is_deleted == False  # Only show active profiles
+        ).order_by(ProposalSubmission.created_at.desc()).all()
         db.close()
     except Exception as e:
         st.error(f"Error loading proposals: {str(e)}")

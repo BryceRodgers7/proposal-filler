@@ -6,7 +6,7 @@ from helpers.auth import get_current_user_type
 def render_profile_browser():
     """
     Render a read-only browser page for viewing all proposal submissions.
-    Only accessible to admin users.
+    Only accessible to admin users. Shows all profiles including deactivated ones.
     """
     # Check if user is an admin
     user_type = st.session_state.get("user_type", "")
@@ -18,12 +18,10 @@ def render_profile_browser():
     st.title("📋 Profile Browser")
     st.write("Browse all proposal submissions in the database (read-only)")
     
-    # Fetch all proposals from database, excluding soft-deleted profiles
+    # Fetch ALL proposals from database (including soft-deleted for admin view)
     try:
         db = next(get_db())
-        proposals = db.query(ProposalSubmission).filter(
-            ProposalSubmission.is_deleted == False  # Exclude soft-deleted profiles
-        ).order_by(ProposalSubmission.created_at.desc()).all()
+        proposals = db.query(ProposalSubmission).order_by(ProposalSubmission.created_at.desc()).all()
         db.close()
     except Exception as e:
         st.error(f"Error loading proposals: {str(e)}")
@@ -33,34 +31,62 @@ def render_profile_browser():
         st.warning("No proposals found in the database. Please add some proposals first.")
         return
     
-    # Display total count
-    st.info(f"Total submissions: {len(proposals)}")
+    # Count active vs deactivated
+    active_count = sum(1 for p in proposals if not p.is_deleted)
+    deleted_count = sum(1 for p in proposals if p.is_deleted)
+    st.info(f"Total submissions: {len(proposals)} (✅ {active_count} active, 🗑️ {deleted_count} deactivated)")
     
-    # Search/filter functionality
-    search_term = st.text_input("🔍 Search by organization name, EIN, or location", "")
+    # Filter options
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Search/filter functionality
+        search_term = st.text_input("🔍 Search by organization name, EIN, or location", "")
+    
+    with col2:
+        # Status filter
+        status_filter = st.selectbox(
+            "Filter by status",
+            options=["All", "Active Only", "Deactivated Only"],
+            index=0
+        )
+    
+    # Filter proposals based on status
+    filtered_proposals = proposals
+    if status_filter == "Active Only":
+        filtered_proposals = [p for p in filtered_proposals if not p.is_deleted]
+    elif status_filter == "Deactivated Only":
+        filtered_proposals = [p for p in filtered_proposals if p.is_deleted]
     
     # Filter proposals based on search
-    filtered_proposals = proposals
     if search_term:
         search_lower = search_term.lower()
         filtered_proposals = [
-            p for p in proposals
+            p for p in filtered_proposals
             if (p.full_organization_name and search_lower in p.full_organization_name.lower())
             or (p.ein and search_lower in p.ein.lower())
             or (p.location_served and search_lower in p.location_served.lower())
         ]
-        st.caption(f"Showing {len(filtered_proposals)} of {len(proposals)} submissions")
+    
+    st.caption(f"Showing {len(filtered_proposals)} of {len(proposals)} submissions")
     
     if not filtered_proposals:
-        st.warning("No proposals match your search criteria.")
+        st.warning("No proposals match your filter criteria.")
         return
     
     # Display proposals in expandable sections
     for idx, proposal in enumerate(filtered_proposals, 1):
+        # Add status indicator to title
+        status_indicator = "🗑️ [DEACTIVATED] " if proposal.is_deleted else ""
+        
         with st.expander(
-            f"#{proposal.id} - {proposal.full_organization_name or 'Unnamed Organization'}",
+            f"{status_indicator}#{proposal.id} - {proposal.full_organization_name or 'Unnamed Organization'}",
             expanded=False
         ):
+            # Show deactivated warning banner
+            if proposal.is_deleted:
+                st.warning("⚠️ This profile has been deactivated by the user")
+            
             # Organize fields into columns
             col1, col2 = st.columns(2)
             
@@ -80,6 +106,7 @@ def render_profile_browser():
                 st.write(f"**File Path:** {proposal.file_path or 'N/A'}")
                 st.write(f"**Created At:** {proposal.created_at.strftime('%Y-%m-%d %H:%M:%S') if proposal.created_at else 'N/A'}")
                 st.write(f"**Updated At:** {proposal.updated_at.strftime('%Y-%m-%d %H:%M:%S') if proposal.updated_at else 'N/A'}")
+                st.write(f"**Status:** {'🗑️ Deactivated' if proposal.is_deleted else '✅ Active'}")
             
             # Full-width fields
             st.markdown("### Mission & Description")
@@ -138,4 +165,3 @@ def render_profile_browser():
                 )
             
             st.markdown("---")
-

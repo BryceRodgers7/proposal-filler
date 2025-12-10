@@ -158,10 +158,11 @@ def render_sidebar():
     
     # Define available pages based on user type
     if user_type == "admin":
-        # Admins only see: Profile Browser and Like Browser
+        # Admins see: Profile Browser, Like Browser, Account Browser
         pages = {
             "📋 Profile Browser": "profilebrowser",
-            "❤️ Like Browser": "likebrowser"
+            "❤️ Like Browser": "likebrowser",
+            "👥 Account Browser": "accountbrowser"
         }
         
         # Set default page for admins

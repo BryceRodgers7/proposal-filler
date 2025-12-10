@@ -17,6 +17,7 @@ from views.register_representative import render_register_representative_page
 from views.register_donor import render_register_donor_page
 from views.verify_email import render_verify_email_page
 from views.account_details import render_account_details_page
+from views.account_browser import render_account_browser
 from helpers.auth import is_authenticated, is_user_deleted
 from views.login import render_login_page
 
@@ -91,6 +92,8 @@ else:
             render_profile_browser()
         elif current_page == "likebrowser":
             render_like_browser()
+        elif current_page == "accountbrowser":
+            render_account_browser()
         elif current_page == "premiumprofilebrowser":
             render_premium_profile_browser()
         elif current_page == "profile":
