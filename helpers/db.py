@@ -5,7 +5,7 @@ This file defines the database schema and provides database connection utilities
 import os
 import streamlit as st
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Integer, Text, DateTime, JSON, ForeignKey, inspect, text
+from sqlalchemy import create_engine, Column, String, Integer, Text, DateTime, JSON, ForeignKey, inspect, text, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -39,6 +39,14 @@ class User(Base):
     
     # Stripe customer ID for payment processing
     stripe_customer_id = Column(String(255), nullable=True, default="")
+    
+    # Email verification fields
+    is_verified = Column(Boolean, default=False, nullable=False)
+    email_verification_token = Column(Text, nullable=True)
+    email_verification_expires = Column(DateTime, nullable=True)
+    verification_sent_at = Column(DateTime, nullable=True)
+    verification_attempts = Column(Integer, default=0, nullable=False)
+    verification_max_attempts = Column(Integer, default=5, nullable=False)
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

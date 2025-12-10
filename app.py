@@ -15,6 +15,7 @@ from views.premium_profile_browser import render_premium_profile_browser
 from views.donor_profile import render_donor_profile_page
 from views.register_representative import render_register_representative_page
 from views.register_donor import render_register_donor_page
+from views.verify_email import render_verify_email_page
 from helpers.auth import is_authenticated
 from views.login import render_login_page
 
@@ -40,6 +41,14 @@ if not _s3_available:
 # Store initialization flags in session state so they can be accessed by pages
 st.session_state.db_initialized = _db_initialized
 st.session_state.s3_available = _s3_available
+
+# ----- CHECK FOR EMAIL VERIFICATION PAGE -----
+# Handle verification page first (before auth check) since users won't be logged in
+# Use experimental_get_query_params for compatibility with older Streamlit versions
+query_params = st.experimental_get_query_params()
+if query_params.get("page", [None])[0] == "verify" and query_params.get("token", [None])[0]:
+    render_verify_email_page(query_params.get("token")[0])
+    st.stop()  # Don't render anything else
 
 # ----- AUTHENTICATION CHECK -----
 if not is_authenticated():
@@ -78,4 +87,3 @@ else:
             render_donor_profile_page()
         else:
             render_profile_page()
-
