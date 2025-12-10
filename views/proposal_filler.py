@@ -586,17 +586,11 @@ def render_profile_page():
         # Check for checkout success/cancel messages
         # Use experimental_get_query_params for compatibility with older Streamlit versions
         try:
-            # Try new API first (Streamlit 1.28.0+)
-            query_params = st.query_params
-        except AttributeError:
-            # Fall back to experimental API (older Streamlit versions)
-            try:
-                query_params = st.experimental_get_query_params()
-                # Convert to dict format for consistency
-                query_params = {k: v[0] if isinstance(v, list) and len(v) > 0 else v for k, v in query_params.items()}
-            except AttributeError:
-                # If neither exists, use empty dict
-                query_params = {}
+            query_params = st.experimental_get_query_params()
+            # Convert list values to single values for consistency
+            query_params = {k: v[0] if isinstance(v, list) and len(v) > 0 else v for k, v in query_params.items()}
+        except Exception:
+            query_params = {}
         
         if query_params.get("checkout") == "success":
             st.success("✅ Payment successful! Your account has been upgraded to Premium. Please refresh the page to see premium features.")
