@@ -126,7 +126,9 @@ def login(username, password):
         return False, f"Error during login: {str(e)}", None
 
 
-def register(username, email, password, confirm_password, user_type="representative"):
+def register(username, email, password, confirm_password, user_type="representative",
+             first_name=None, last_name=None, company=None, street_address=None, 
+             city=None, state=None, zip_code=None, phone_number=None):
     """
     Register a new user with email verification.
     User is NOT automatically logged in - they must verify email first.
@@ -137,13 +139,40 @@ def register(username, email, password, confirm_password, user_type="representat
         password (str): Plain text password
         confirm_password (str): Password confirmation
         user_type (str): User type ("representative" or "donor")
+        first_name (str): First name (required)
+        last_name (str): Last name (required)
+        company (str): Company name (optional)
+        street_address (str): Street address (required)
+        city (str): City (required)
+        state (str): State (required)
+        zip_code (str): ZIP code (required)
+        phone_number (str): Phone number (optional)
         
     Returns:
         tuple: (success: bool, message: str, user: User or None)
     """
     # Validation
     if not username or not email or not password:
-        return False, "All fields are required", None
+        return False, "Username, email, and password are required", None
+    
+    # Validate required user details
+    if not first_name or not first_name.strip():
+        return False, "First name is required", None
+    
+    if not last_name or not last_name.strip():
+        return False, "Last name is required", None
+    
+    if not street_address or not street_address.strip():
+        return False, "Street address is required", None
+    
+    if not city or not city.strip():
+        return False, "City is required", None
+    
+    if not state or not state.strip():
+        return False, "State is required", None
+    
+    if not zip_code or not zip_code.strip():
+        return False, "ZIP code is required", None
     
     if password != confirm_password:
         return False, "Passwords do not match", None
@@ -173,7 +202,7 @@ def register(username, email, password, confirm_password, user_type="representat
         token = generate_verification_token()
         token_expiry = datetime.now(timezone.utc) + timedelta(hours=VERIFICATION_TOKEN_EXPIRY_HOURS)
         
-        # Create new user with verification fields
+        # Create new user with verification fields and user details
         user = User(
             username=username, 
             email=email, 
@@ -184,7 +213,17 @@ def register(username, email, password, confirm_password, user_type="representat
             email_verification_expires=token_expiry,
             verification_sent_at=datetime.now(timezone.utc),
             verification_attempts=1,  # First attempt
-            verification_max_attempts=5
+            verification_max_attempts=5,
+            # User details
+            first_name=first_name.strip(),
+            last_name=last_name.strip(),
+            company=company.strip() if company else None,
+            street_address=street_address.strip(),
+            city=city.strip(),
+            state=state.strip(),
+            zip_code=zip_code.strip(),
+            phone_number=phone_number.strip() if phone_number else None,
+            is_deleted=False
         )
         user.set_password(password)
         
@@ -441,3 +480,178 @@ def has_account_tier(user_id=None, required_tier="premium"):
     required_level = tier_hierarchy.get(required_tier.lower(), 999)
     
     return user_level >= required_level
+
+
+def update_user_details(user_id, first_name=None, last_name=None, company=None, 
+                        street_address=None, city=None, state=None, zip_code=None, 
+                        phone_number=None):
+    """
+    Update user details for an existing user.
+    
+    Args:
+        user_id (int): User ID
+        first_name (str): First name
+        last_name (str): Last name
+        company (str): Company name (optional)
+        street_address (str): Street address
+        city (str): City
+        state (str): State
+        zip_code (str): ZIP code
+        phone_number (str): Phone number (optional)
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    if not first_name or not first_name.strip():
+        return False, "First name is required"
+    
+    if not last_name or not last_name.strip():
+        return False, "Last name is required"
+    
+    if not street_address or not street_address.strip():
+        return False, "Street address is required"
+    
+    if not city or not city.strip():
+        return False, "City is required"
+    
+    if not state or not state.strip():
+        return False, "State is required"
+    
+    if not zip_code or not zip_code.strip():
+        return False, "ZIP code is required"
+    
+    try:
+        db = next(get_db())
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if user is None:
+            db.close()
+            return False, "User not found"
+        
+        user.first_name = first_name.strip()
+        user.last_name = last_name.strip()
+        user.company = company.strip() if company else None
+        user.street_address = street_address.strip()
+        user.city = city.strip()
+        user.state = state.strip()
+        user.zip_code = zip_code.strip()
+        user.phone_number = phone_number.strip() if phone_number else None
+        
+        db.commit()
+        db.close()
+        
+        return True, "Account details updated successfully"
+    except Exception as e:
+        return False, f"Error updating account details: {str(e)}"
+
+
+def soft_delete_user(user_id):
+    """
+    Soft-delete a user account and their associated profiles.
+    Sets is_deleted=True on user, their donor_profile, and proposal_submissions.
+    
+    Args:
+        user_id (int): User ID
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    from helpers.db import DonorProfile, ProposalSubmission
+    
+    try:
+        db = next(get_db())
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if user is None:
+            db.close()
+            return False, "User not found"
+        
+        # Soft-delete the user
+        user.is_deleted = True
+        
+        # Soft-delete associated donor profile (if exists)
+        donor_profile = db.query(DonorProfile).filter(DonorProfile.user_id == user_id).first()
+        if donor_profile:
+            donor_profile.is_deleted = True
+        
+        # Soft-delete associated proposal submissions
+        proposals = db.query(ProposalSubmission).filter(ProposalSubmission.user_id == user_id).all()
+        for proposal in proposals:
+            proposal.is_deleted = True
+        
+        db.commit()
+        db.close()
+        
+        return True, "Account has been deactivated"
+    except Exception as e:
+        return False, f"Error deactivating account: {str(e)}"
+
+
+def reactivate_user(user_id):
+    """
+    Reactivate a soft-deleted user account and their associated profiles.
+    Sets is_deleted=False on user, their donor_profile, and proposal_submissions.
+    
+    Args:
+        user_id (int): User ID
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    from helpers.db import DonorProfile, ProposalSubmission
+    
+    try:
+        db = next(get_db())
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if user is None:
+            db.close()
+            return False, "User not found"
+        
+        # Reactivate the user
+        user.is_deleted = False
+        
+        # Reactivate associated donor profile (if exists)
+        donor_profile = db.query(DonorProfile).filter(DonorProfile.user_id == user_id).first()
+        if donor_profile:
+            donor_profile.is_deleted = False
+        
+        # Reactivate associated proposal submissions
+        proposals = db.query(ProposalSubmission).filter(ProposalSubmission.user_id == user_id).all()
+        for proposal in proposals:
+            proposal.is_deleted = False
+        
+        db.commit()
+        db.close()
+        
+        return True, "Account has been reactivated"
+    except Exception as e:
+        return False, f"Error reactivating account: {str(e)}"
+
+
+def is_user_deleted(user_id=None):
+    """
+    Check if a user account is soft-deleted.
+    
+    Args:
+        user_id (int, optional): User ID. If None, uses current logged-in user.
+        
+    Returns:
+        bool: True if user is soft-deleted, False otherwise
+    """
+    if user_id is None:
+        user_id = get_current_user_id()
+    
+    if user_id is None:
+        return False
+    
+    try:
+        db = next(get_db())
+        user = db.query(User).filter(User.id == user_id).first()
+        db.close()
+        
+        if user:
+            return user.is_deleted
+        return False
+    except Exception:
+        return False

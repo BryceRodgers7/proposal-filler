@@ -94,11 +94,12 @@ def render_tinderish():
         rebuild_deck = True
     
     if rebuild_deck:
-        # Fetch all proposals from database, excluding the current user's profile
+        # Fetch all proposals from database, excluding the current user's profile and soft-deleted profiles
         try:
             db = next(get_db())
             proposals = db.query(ProposalSubmission).filter(
-                ProposalSubmission.user_id != user_id
+                ProposalSubmission.user_id != user_id,
+                ProposalSubmission.is_deleted == False  # Exclude soft-deleted profiles
             ).all()
             db.close()
         except Exception as e:

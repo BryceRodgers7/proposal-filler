@@ -19,13 +19,21 @@ def render_like_browser():
     st.title("❤️ Like Browser")
     st.write("View all likes and passes from all users")
     
-    # Fetch all actions from database with related data
+    # Fetch all actions from database with related data, excluding soft-deleted users and proposals
     try:
         db = next(get_db())
         # Query actions with eager loading of relationships
+        # Join with User and ProposalSubmission to filter out soft-deleted
         actions = db.query(ProposalAction).options(
             joinedload(ProposalAction.proposal),
             joinedload(ProposalAction.user)
+        ).join(
+            User, ProposalAction.user_id == User.id
+        ).join(
+            ProposalSubmission, ProposalAction.proposal_id == ProposalSubmission.id
+        ).filter(
+            User.is_deleted == False,  # Exclude actions from soft-deleted users
+            ProposalSubmission.is_deleted == False  # Exclude actions on soft-deleted proposals
         ).order_by(ProposalAction.created_at.desc()).all()
         db.close()
     except Exception as e:

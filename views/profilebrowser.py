@@ -18,10 +18,12 @@ def render_profile_browser():
     st.title("📋 Profile Browser")
     st.write("Browse all proposal submissions in the database (read-only)")
     
-    # Fetch all proposals from database
+    # Fetch all proposals from database, excluding soft-deleted profiles
     try:
         db = next(get_db())
-        proposals = db.query(ProposalSubmission).order_by(ProposalSubmission.created_at.desc()).all()
+        proposals = db.query(ProposalSubmission).filter(
+            ProposalSubmission.is_deleted == False  # Exclude soft-deleted profiles
+        ).order_by(ProposalSubmission.created_at.desc()).all()
         db.close()
     except Exception as e:
         st.error(f"Error loading proposals: {str(e)}")

@@ -167,9 +167,10 @@ def render_sidebar():
         # Set default page for admins
         default_page = "profilebrowser"
     elif user_type == "representative":
-        # Representatives see: Organization Profile, Premium Profile Browser (if premium)
+        # Representatives see: Organization Profile, Account Details, Premium Profile Browser (if premium)
         pages = {
-            "👤 Organization Profile": "profile"
+            "👤 Organization Profile": "profile",
+            "⚙️ Account Details": "accountdetails"
         }
         
         # Add premium pages if user has premium access
@@ -179,10 +180,11 @@ def render_sidebar():
         # Set default page for representatives
         default_page = "profile"
     elif user_type == "donor":
-        # Donors see: My Donor Profile, Tinder-ish
+        # Donors see: My Donor Profile, Tinder-ish, Account Details
         pages = {
             "💰 My Donor Profile": "donorprofile",
-            "🎴 Tinder-ish": "tinderish"
+            "🎴 Tinder-ish": "tinderish",
+            "⚙️ Account Details": "accountdetails"
         }
         
         # Set default page for donors

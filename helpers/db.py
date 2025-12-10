@@ -48,6 +48,19 @@ class User(Base):
     verification_attempts = Column(Integer, default=0, nullable=False)
     verification_max_attempts = Column(Integer, default=5, nullable=False)
     
+    # User detail fields
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
+    company = Column(String(255), nullable=True)  # Optional
+    street_address = Column(String(500), nullable=True)
+    city = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    zip_code = Column(String(20), nullable=True)
+    phone_number = Column(String(50), nullable=True)  # Optional
+    
+    # Soft-delete flag
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -105,6 +118,9 @@ class ProposalSubmission(Base):
     # Store raw extracted text for reference (can handle 10,000+ characters, not indexed)
     extracted_text = Column(Text, nullable=True, index=False)
     
+    # Soft-delete flag
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    
     # Relationships
     user = relationship("User", back_populates="proposals")
     actions = relationship("ProposalAction", back_populates="proposal", cascade="all, delete-orphan")
@@ -155,6 +171,9 @@ class DonorProfile(Base):
     
     # Donor profile image (S3 path)
     image_path = Column(String(500), nullable=True)  # S3 key for donor profile image
+    
+    # Soft-delete flag
+    is_deleted = Column(Boolean, default=False, nullable=False)
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -25,7 +25,7 @@ def render_premium_profile_browser():
     st.title("⭐ Premium Profile Browser")
     st.write("Browse all organization profiles in the database with your premium features (read-only)")
     
-    # Fetch all proposals from database
+    # Fetch ALL proposals from database (including soft-deleted for premium view)
     try:
         db = next(get_db())
         proposals = db.query(ProposalSubmission).order_by(ProposalSubmission.created_at.desc()).all()

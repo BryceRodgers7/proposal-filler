@@ -20,14 +20,59 @@ def render_register_representative_page():
         return
     
     with st.form("register_representative_form"):
-        username = st.text_input("Username", key="rep_register_username")
-        email = st.text_input("Email", key="rep_register_email")
-        password = st.text_input("Password", type="password", key="rep_register_password")
-        confirm_password = st.text_input("Confirm Password", type="password", key="rep_register_confirm_password")
+        st.markdown("#### Account Information")
+        username = st.text_input("Username *", key="rep_register_username")
+        email = st.text_input("Email *", key="rep_register_email")
+        password = st.text_input("Password *", type="password", key="rep_register_password")
+        confirm_password = st.text_input("Confirm Password *", type="password", key="rep_register_confirm_password")
+        
+        st.markdown("---")
+        st.markdown("#### Personal Information")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            first_name = st.text_input("First Name *", key="rep_first_name")
+        with col2:
+            last_name = st.text_input("Last Name *", key="rep_last_name")
+        
+        company = st.text_input("Company / Organization", key="rep_company", help="Optional")
+        
+        st.markdown("---")
+        st.markdown("#### Address Information")
+        
+        street_address = st.text_input("Street Address *", key="rep_street_address")
+        
+        col_city, col_state, col_zip = st.columns([2, 1, 1])
+        with col_city:
+            city = st.text_input("City *", key="rep_city")
+        with col_state:
+            state = st.text_input("State *", key="rep_state")
+        with col_zip:
+            zip_code = st.text_input("ZIP *", key="rep_zip")
+        
+        phone_number = st.text_input("Phone Number", key="rep_phone", help="Optional")
+        
+        st.markdown("---")
+        st.caption("* Required fields")
+        
         submit = st.form_submit_button("Register as Representative", type="primary", use_container_width=True)
         
         if submit:
-            success, message, user = register(username, email, password, confirm_password, user_type="representative")
+            success, message, user = register(
+                username=username, 
+                email=email, 
+                password=password, 
+                confirm_password=confirm_password, 
+                user_type="representative",
+                first_name=first_name,
+                last_name=last_name,
+                company=company,
+                street_address=street_address,
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                phone_number=phone_number
+            )
             if success:
                 # Store registration info for success page
                 st.session_state.registration_success = True

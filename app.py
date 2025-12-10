@@ -16,7 +16,8 @@ from views.donor_profile import render_donor_profile_page
 from views.register_representative import render_register_representative_page
 from views.register_donor import render_register_donor_page
 from views.verify_email import render_verify_email_page
-from helpers.auth import is_authenticated
+from views.account_details import render_account_details_page
+from helpers.auth import is_authenticated, is_user_deleted
 from views.login import render_login_page
 
 # ----- CONFIG -----
@@ -63,27 +64,45 @@ if not is_authenticated():
         # Default to login page
         render_login_page()
 else:
-    # User is authenticated, show the app
-    # ----- SIDEBAR NAVIGATION -----
-    current_page = render_sidebar()
-
-    # ----- PAGE ROUTING -----
-    if current_page == "tinderish":
-        render_tinderish()
-    elif current_page == "profilebrowser":
-        render_profile_browser()
-    elif current_page == "likebrowser":
-        render_like_browser()
-    elif current_page == "premiumprofilebrowser":
-        render_premium_profile_browser()
-    elif current_page == "profile":
-        render_profile_page()
-    elif current_page == "donorprofile":
-        render_donor_profile_page()
+    # User is authenticated, check if account is soft-deleted
+    if is_user_deleted():
+        # Soft-deleted users can only access the account details page (to reactivate)
+        st.sidebar.title("📋 Navigation")
+        st.sidebar.warning("⚠️ Account Deactivated")
+        st.sidebar.info("Your account is currently deactivated. You can only access Account Details to reactivate.")
+        
+        # Show logout button in sidebar
+        from helpers.auth import logout
+        if st.sidebar.button("🚪 Logout", use_container_width=True):
+            logout()
+            st.rerun()
+        
+        # Force render account details page
+        render_account_details_page()
     else:
-        # Default based on user type
-        user_type = st.session_state.get("user_type", "representative")
-        if user_type == "donor":
-            render_donor_profile_page()
-        else:
+        # Normal flow - show the app
+        # ----- SIDEBAR NAVIGATION -----
+        current_page = render_sidebar()
+
+        # ----- PAGE ROUTING -----
+        if current_page == "tinderish":
+            render_tinderish()
+        elif current_page == "profilebrowser":
+            render_profile_browser()
+        elif current_page == "likebrowser":
+            render_like_browser()
+        elif current_page == "premiumprofilebrowser":
+            render_premium_profile_browser()
+        elif current_page == "profile":
             render_profile_page()
+        elif current_page == "donorprofile":
+            render_donor_profile_page()
+        elif current_page == "accountdetails":
+            render_account_details_page()
+        else:
+            # Default based on user type
+            user_type = st.session_state.get("user_type", "representative")
+            if user_type == "donor":
+                render_donor_profile_page()
+            else:
+                render_profile_page()
