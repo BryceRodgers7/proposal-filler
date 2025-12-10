@@ -2,7 +2,7 @@
 Authentication module for user login and registration with email verification.
 """
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import streamlit as st
 from helpers.db import get_db, User
 from helpers.email import send_verification_email, send_verification_resent_email
@@ -171,7 +171,7 @@ def register(username, email, password, confirm_password, user_type="representat
         
         # Generate verification token
         token = generate_verification_token()
-        token_expiry = datetime.utcnow() + timedelta(hours=VERIFICATION_TOKEN_EXPIRY_HOURS)
+        token_expiry = datetime.now(timezone.utc) + timedelta(hours=VERIFICATION_TOKEN_EXPIRY_HOURS)
         
         # Create new user with verification fields
         user = User(
@@ -182,7 +182,7 @@ def register(username, email, password, confirm_password, user_type="representat
             is_verified=False,
             email_verification_token=token,
             email_verification_expires=token_expiry,
-            verification_sent_at=datetime.utcnow(),
+            verification_sent_at=datetime.now(timezone.utc),
             verification_attempts=1,  # First attempt
             verification_max_attempts=5
         )
@@ -235,7 +235,7 @@ def verify_email_token(token):
             return True, "Your email has already been verified. You can now log in.", user
         
         # Check if token is expired
-        if user.email_verification_expires and datetime.utcnow() > user.email_verification_expires:
+        if user.email_verification_expires and datetime.now(timezone.utc) > user.email_verification_expires:
             db.close()
             return False, "Verification link has expired. Please request a new one.", None
         
@@ -281,7 +281,7 @@ def can_resend_verification(user_id):
         # Check cooldown (5 minutes)
         if user.verification_sent_at:
             cooldown_end = user.verification_sent_at + timedelta(minutes=RESEND_COOLDOWN_MINUTES)
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             
             if now < cooldown_end:
                 wait_seconds = int((cooldown_end - now).total_seconds())
@@ -322,12 +322,12 @@ def resend_verification_email(user_id):
         
         # Generate new token
         new_token = generate_verification_token()
-        new_expiry = datetime.utcnow() + timedelta(hours=VERIFICATION_TOKEN_EXPIRY_HOURS)
+        new_expiry = datetime.now(timezone.utc) + timedelta(hours=VERIFICATION_TOKEN_EXPIRY_HOURS)
         
         # Update user
         user.email_verification_token = new_token
         user.email_verification_expires = new_expiry
-        user.verification_sent_at = datetime.utcnow()
+        user.verification_sent_at = datetime.now(timezone.utc)
         user.verification_attempts += 1
         
         db.commit()
