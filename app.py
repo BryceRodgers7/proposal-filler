@@ -49,8 +49,14 @@ st.session_state.s3_available = _s3_available
 # Use experimental_get_query_params for compatibility with older Streamlit versions
 query_params = st.experimental_get_query_params()
 if query_params.get("page", [None])[0] == "verify" and query_params.get("token", [None])[0]:
-    render_verify_email_page(query_params.get("token")[0])
-    st.stop()  # Don't render anything else
+    # Check if user clicked "Go to Login" - skip verification and show login instead
+    if st.session_state.get("skip_verification"):
+        del st.session_state.skip_verification
+        # Clear query params and continue to login
+        st.experimental_set_query_params()
+    else:
+        render_verify_email_page(query_params.get("token")[0])
+        st.stop()  # Don't render anything else
 
 # ----- AUTHENTICATION CHECK -----
 if not is_authenticated():

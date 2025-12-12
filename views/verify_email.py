@@ -45,8 +45,8 @@ def render_verify_email_page(token: str):
         """, unsafe_allow_html=True)
         
         if st.button("🔐 Go to Login", type="primary", use_container_width=True):
-            # Clear query params to prevent re-verification attempt
-            st.experimental_set_query_params()
+            # Set flag to skip verification on next load (query params persist in URL)
+            st.session_state.skip_verification = True
             st.session_state.page = "login"
             st.rerun()
     else:
@@ -82,8 +82,8 @@ def _show_back_to_login():
     """Helper to show the back to login button."""
     st.markdown("---")
     if st.button("← Back to Login", use_container_width=True):
-        # Clear query params to prevent re-verification attempt
-        st.experimental_set_query_params()
+        # Set flag to skip verification on next load (query params persist in URL)
+        st.session_state.skip_verification = True
         st.session_state.page = "login"
         st.rerun()
 
