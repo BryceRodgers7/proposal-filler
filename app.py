@@ -48,14 +48,22 @@ st.session_state.s3_available = _s3_available
 # Handle verification page first (before auth check) since users won't be logged in
 # Use experimental_get_query_params for compatibility with older Streamlit versions
 query_params = st.experimental_get_query_params()
-if query_params.get("page", [None])[0] == "verify" and query_params.get("token", [None])[0]:
-    # Check if user clicked "Go to Login" - skip verification and show login instead
-    if st.session_state.get("skip_verification"):
-        del st.session_state.skip_verification
-        # Clear query params and continue to login
-        st.experimental_set_query_params()
+verification_token = query_params.get("token", [None])[0]
+
+if query_params.get("page", [None])[0] == "verify" and verification_token:
+    # Track which tokens we've already processed in this session to prevent re-verification
+    if "processed_tokens" not in st.session_state:
+        st.session_state.processed_tokens = set()
+    
+    # If this token was already processed, skip to login
+    if verification_token in st.session_state.processed_tokens:
+        # Token already processed - user is navigating back or refreshing
+        # Don't show verification page again
+        pass  # Fall through to normal auth flow below
     else:
-        render_verify_email_page(query_params.get("token")[0])
+        # New token - process verification
+        st.session_state.processed_tokens.add(verification_token)
+        render_verify_email_page(verification_token)
         st.stop()  # Don't render anything else
 
 # ----- AUTHENTICATION CHECK -----
