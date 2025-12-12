@@ -28,10 +28,14 @@ def render_premium_profile_browser():
     # Fetch active proposals only (exclude soft-deleted profiles)
     try:
         db = next(get_db())
-        proposals = db.query(ProposalSubmission).filter(
+        all_proposals = db.query(ProposalSubmission).filter(
             ProposalSubmission.is_deleted == False  # Only show active profiles
         ).order_by(ProposalSubmission.created_at.desc()).all()
         db.close()
+        
+        # Filter out incomplete profiles (empty profiles created for image upload)
+        proposals = [p for p in all_proposals if p.full_organization_name and p.full_organization_name.strip()]
+        
     except Exception as e:
         st.error(f"Error loading proposals: {str(e)}")
         proposals = []

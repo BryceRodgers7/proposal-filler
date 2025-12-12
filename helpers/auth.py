@@ -248,6 +248,7 @@ def register(username, email, password, confirm_password, user_type="representat
 def verify_email_token(token):
     """
     Verify an email verification token and activate the user account.
+    Also creates empty profile records for the user to enable image uploads.
     
     Args:
         token (str): The verification token from the email link
@@ -255,6 +256,8 @@ def verify_email_token(token):
     Returns:
         tuple: (success: bool, message: str, user: User or None)
     """
+    from helpers.db import ProposalSubmission, DonorProfile
+    
     if not token:
         return False, "No verification token provided", None
     
@@ -282,6 +285,38 @@ def verify_email_token(token):
         user.is_verified = True
         user.email_verification_token = None
         user.email_verification_expires = None
+        
+        # Create empty profile based on user type
+        if user.user_type == "representative":
+            # Check if proposal submission already exists
+            existing_proposal = db.query(ProposalSubmission).filter(
+                ProposalSubmission.user_id == user.id
+            ).first()
+            
+            if not existing_proposal:
+                # Create empty proposal submission for image upload
+                empty_proposal = ProposalSubmission(
+                    user_id=user.id,
+                    file_name="",  # Will be updated when user completes profile
+                    file_path="",
+                    file_type="",
+                    is_deleted=False
+                )
+                db.add(empty_proposal)
+        
+        elif user.user_type == "donor":
+            # Check if donor profile already exists
+            existing_profile = db.query(DonorProfile).filter(
+                DonorProfile.user_id == user.id
+            ).first()
+            
+            if not existing_profile:
+                # Create empty donor profile for image upload
+                empty_profile = DonorProfile(
+                    user_id=user.id,
+                    is_deleted=False
+                )
+                db.add(empty_profile)
         
         db.commit()
         db.refresh(user)

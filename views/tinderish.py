@@ -102,6 +102,11 @@ def render_tinderish():
                 ProposalSubmission.is_deleted == False  # Exclude soft-deleted profiles
             ).all()
             db.close()
+            
+            # Filter out incomplete profiles (empty profiles created for image upload)
+            # A profile is complete if it has an organization name
+            proposals = [p for p in proposals if p.full_organization_name and p.full_organization_name.strip()]
+            
         except Exception as e:
             st.error(f"Error loading proposals: {str(e)}")
             proposals = []
