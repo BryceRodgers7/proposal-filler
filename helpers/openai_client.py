@@ -244,3 +244,124 @@ def call_llm_to_structure(text: str) -> dict:
         st.error(f"Error calling OpenAI API: {str(e)}")
         return DEFAULT_FORM.copy()
 
+
+def generate_organization_card(proposal, existing_cards):
+    """
+    Generate a unique organization card using AI based on the organization's profile.
+    
+    Args:
+        proposal: ProposalSubmission object with organization data
+        existing_cards: List of existing OrganizationCard objects to avoid duplication
+        
+    Returns:
+        dict: {"title": str, "subtitle": str} or None if generation fails
+    """
+    client = get_openai_client()
+    if client is None:
+        st.error("OpenAI API key not found. Please configure your API key.")
+        return None
+    
+    # Build context from proposal
+    context_parts = []
+    
+    if proposal.full_organization_name:
+        context_parts.append(f"Organization Name: {proposal.full_organization_name}")
+    
+    if proposal.mission_statement:
+        context_parts.append(f"Mission: {proposal.mission_statement}")
+    
+    if proposal.what_we_do_in_one_sentence:
+        context_parts.append(f"What We Do: {proposal.what_we_do_in_one_sentence}")
+    
+    if proposal.biggest_accomplishment:
+        context_parts.append(f"Biggest Accomplishment: {proposal.biggest_accomplishment}")
+    
+    if proposal.primary_cause_area:
+        if isinstance(proposal.primary_cause_area, list):
+            context_parts.append(f"Cause Areas: {', '.join(proposal.primary_cause_area)}")
+        else:
+            context_parts.append(f"Cause Areas: {proposal.primary_cause_area}")
+    
+    if proposal.populations:
+        if isinstance(proposal.populations, list):
+            context_parts.append(f"Populations Served: {', '.join(proposal.populations)}")
+        else:
+            context_parts.append(f"Populations Served: {proposal.populations}")
+    
+    if proposal.location_served:
+        context_parts.append(f"Location: {proposal.location_served}")
+    
+    context_text = "\n".join(context_parts)
+    
+    # Build list of existing card content to avoid duplication
+    existing_content = []
+    for card in existing_cards:
+        existing_content.append(f"Title: {card.title}")
+        if card.subtitle:
+            existing_content.append(f"Subtitle: {card.subtitle}")
+    
+    existing_text = "\n".join(existing_content) if existing_content else "None"
+    
+    system_prompt = f"""
+    You are a copywriting expert specializing in nonprofit marketing and donor engagement.
+    
+    Your task is to create a compelling organization card that will appeal to potential donors.
+    The card should highlight a specific accomplishment, impact, or unique aspect of the organization.
+    
+    IMPORTANT: Create a card that is DIFFERENT from any existing cards for this organization.
+    
+    Existing cards for this organization:
+    {existing_text}
+    
+    Requirements:
+    - Title: Create a compelling, donor-focused headline (max 100 characters). Should be punchy and highlight impact.
+    - Subtitle: Provide specific details or context (max 300 characters). Should tell a story or show concrete results.
+    - Focus on accomplishments, impact metrics, beneficiaries helped, or unique strengths
+    - Make it emotionally engaging but authentic
+    - Do NOT repeat content from existing cards
+    - If this is the first card, focus on the organization's biggest accomplishment
+    - If this is the second card, focus on a different aspect (e.g., populations served, mission impact)
+    - If this is the third card, highlight another unique angle (e.g., community reach, innovation)
+    
+    Return ONLY a JSON object with these keys: "title" and "subtitle"
+
+    IMPORTANT LENGTH CONSTRAINT:
+    - The subtitle MUST be 300 characters or fewer, INCLUDING spaces.
+    - You MUST count characters before responding.
+    - If the subtitle exceeds 300 characters, you MUST rewrite it until it is within the limit.
+    - Do NOT exceed the limit under any circumstances.
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.7,  # Higher temperature for more creative variation
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt.strip()},
+                {"role": "user", "content": context_text},
+            ],
+        )
+        
+        content = response.choices[0].message.content
+        
+        try:
+            data = json.loads(content)
+            
+            # Validate required fields
+            if "title" not in data or "subtitle" not in data:
+                st.error("AI response missing required fields")
+                return None
+            
+            # Truncate to max lengths if needed
+            data["title"] = data["title"][:100] if data["title"] else ""
+            data["subtitle"] = data["subtitle"][:300] if data["subtitle"] else ""
+            
+            return data
+        except json.JSONDecodeError:
+            st.error("Invalid JSON response from AI")
+            return None
+    
+    except Exception as e:
+        st.error(f"Error generating card with AI: {str(e)}")
+        return None

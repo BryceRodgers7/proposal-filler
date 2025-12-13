@@ -69,6 +69,8 @@ class User(Base):
     proposals = relationship("ProposalSubmission", back_populates="user", cascade="all, delete-orphan")
     actions = relationship("ProposalAction", back_populates="user", cascade="all, delete-orphan")
     donor_profile = relationship("DonorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    organization_cards = relationship("OrganizationCard", back_populates="user", cascade="all, delete-orphan")
+    card_actions = relationship("CardAction", back_populates="user", cascade="all, delete-orphan")
     
     def set_password(self, password):
         """Hash and set the user's password."""
@@ -181,6 +183,61 @@ class DonorProfile(Base):
     
     # Relationships
     user = relationship("User", back_populates="donor_profile")
+
+
+class OrganizationCard(Base):
+    """
+    Table to store organization cards for the kindr swipe feature.
+    Each organization can have up to 3 cards.
+    """
+    __tablename__ = "organization_cards"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign key to user (organization representative)
+    user_id = Column(Integer, ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Card content
+    title = Column(String(255), nullable=False)  # Headline/title for the card
+    subtitle = Column(Text, nullable=True)  # Optional additional description
+    image_path = Column(String(500), nullable=True)  # S3 key for card image
+    
+    # Soft-delete flag
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User", back_populates="organization_cards")
+    card_actions = relationship("CardAction", back_populates="card", cascade="all, delete-orphan")
+
+
+class CardAction(Base):
+    """
+    Table to store likes and passes on organization cards.
+    Similar to ProposalAction but for cards.
+    """
+    __tablename__ = "card_actions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign key to organization card
+    card_id = Column(Integer, ForeignKey("organization_cards.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Foreign key to user (donor who swiped)
+    user_id = Column(Integer, ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Action type: like or pass
+    action_type = Column(String(10), nullable=False, index=True)  # "like" or "pass"
+    
+    # Timestamp when action was taken
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Relationships
+    card = relationship("OrganizationCard", back_populates="card_actions")
+    user = relationship("User", back_populates="card_actions")
 
 
 def init_db():

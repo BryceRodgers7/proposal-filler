@@ -18,6 +18,10 @@ from views.register_donor import render_register_donor_page
 from views.verify_email import render_verify_email_page
 from views.account_details import render_account_details_page
 from views.account_browser import render_account_browser
+from views.card_creator import render_card_creator
+from views.kindr_swipe import render_kindr_swipe
+from views.card_browser import render_card_browser
+from views.card_like_browser import render_card_like_browser
 from helpers.auth import is_authenticated, is_user_deleted
 from views.login import render_login_page
 
@@ -116,6 +120,14 @@ else:
             render_donor_profile_page()
         elif current_page == "accountdetails":
             render_account_details_page()
+        elif current_page == "cardcreator":
+            render_card_creator()
+        elif current_page == "kindrswipe":
+            render_kindr_swipe()
+        elif current_page == "cardbrowser":
+            render_card_browser()
+        elif current_page == "cardlikebrowser":
+            render_card_like_browser()
         else:
             # Default based on user type
             user_type = st.session_state.get("user_type", "representative")

@@ -463,6 +463,15 @@ def logout():
         del st.session_state.unverified_username
     if "unverified_email" in st.session_state:
         del st.session_state.unverified_email
+    # Clear AI-generated card content
+    if "ai_generated_title" in st.session_state:
+        del st.session_state.ai_generated_title
+    if "ai_generated_subtitle" in st.session_state:
+        del st.session_state.ai_generated_subtitle
+    # Clear card creator editing state
+    keys_to_delete = [key for key in st.session_state.keys() if key.startswith("editing_card_")]
+    for key in keys_to_delete:
+        del st.session_state[key]
 
 
 def get_user_account_tier(user_id=None):

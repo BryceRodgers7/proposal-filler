@@ -158,19 +158,22 @@ def render_sidebar():
     
     # Define available pages based on user type
     if user_type == "admin":
-        # Admins see: Profile Browser, Like Browser, Account Browser
+        # Admins see: Profile Browser, Like Browser, Account Browser, Card Browser, Card Like Browser
         pages = {
             "📋 Profile Browser": "profilebrowser",
             "❤️ Like Browser": "likebrowser",
-            "👥 Account Browser": "accountbrowser"
+            "👥 Account Browser": "accountbrowser",
+            "🎴 Card Browser": "cardbrowser",
+            "💙 Card Like Browser": "cardlikebrowser"
         }
         
         # Set default page for admins
         default_page = "profilebrowser"
     elif user_type == "representative":
-        # Representatives see: Organization Profile, Account Details, Premium Profile Browser (if premium)
+        # Representatives see: Organization Profile, Card Creator, Account Details, Premium Profile Browser (if premium)
         pages = {
             "👤 Organization Profile": "profile",
+            "🎴 Card Creator": "cardcreator",
             "⚙️ Account Details": "accountdetails"
         }
         
@@ -181,9 +184,10 @@ def render_sidebar():
         # Set default page for representatives
         default_page = "profile"
     elif user_type == "donor":
-        # Donors see: My Donor Profile, Tinder-ish, Account Details
+        # Donors see: My Donor Profile, Kindr Swipe, Tinder-ish, Account Details
         pages = {
             "💰 My Donor Profile": "donorprofile",
+            "💙 Kindr Swipe": "kindrswipe",
             "🎴 Tinder-ish": "tinderish",
             "⚙️ Account Details": "accountdetails"
         }
