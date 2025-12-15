@@ -38,6 +38,17 @@ def render_login_page():
             else:
                 st.error(message)
     
+    # Forgot password and username links
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔐 Forgot Password?", use_container_width=True):
+            st.session_state.page = "forgot_password"
+            st.rerun()
+    with col2:
+        if st.button("👤 Forgot Username?", use_container_width=True):
+            st.session_state.page = "forgot_username"
+            st.rerun()
+    
     st.markdown("---")
     st.markdown("### New User?")
     st.write("Choose your account type to get started:")

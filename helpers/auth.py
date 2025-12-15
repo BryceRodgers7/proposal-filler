@@ -472,6 +472,15 @@ def logout():
     keys_to_delete = [key for key in st.session_state.keys() if key.startswith("editing_card_")]
     for key in keys_to_delete:
         del st.session_state[key]
+    # Clear password reset session state
+    if "validated_reset_tokens" in st.session_state:
+        del st.session_state.validated_reset_tokens
+    if "processed_reset_tokens" in st.session_state:
+        del st.session_state.processed_reset_tokens
+    if "reset_password_success" in st.session_state:
+        del st.session_state.reset_password_success
+    if "reset_token_username" in st.session_state:
+        del st.session_state.reset_token_username
 
 
 def get_user_account_tier(user_id=None):
@@ -699,3 +708,204 @@ def is_user_deleted(user_id=None):
         return False
     except Exception:
         return False
+
+
+def request_password_reset(email):
+    """
+    Request a password reset by email. Generates a token and sends reset email.
+    
+    Args:
+        email (str): Email address of the user
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    from helpers.email import send_password_reset_email
+    
+    if not email or not email.strip():
+        return False, "Email address is required"
+    
+    try:
+        db = next(get_db())
+        user = db.query(User).filter(User.email == email.strip().lower()).first()
+        
+        if user is None:
+            db.close()
+            # Don't reveal if email exists or not for security
+            return True, "If this email is registered, you will receive a password reset link shortly."
+        
+        # Check if user is deleted
+        if user.is_deleted:
+            db.close()
+            return True, "If this email is registered, you will receive a password reset link shortly."
+        
+        # Generate password reset token (reuse verification token generation)
+        token = generate_verification_token()
+        token_expiry = datetime.now(timezone.utc) + timedelta(hours=1)  # 1 hour expiry for password reset
+        
+        # Store token in email_verification_token field (reuse for simplicity)
+        # We'll use a different field pattern: password_reset_token
+        # But since we don't have that field, let's add it to the user model temporarily via the same field
+        # Actually, let's just use the same verification token field with a prefix to distinguish
+        user.email_verification_token = f"PWDRESET_{token}"
+        user.email_verification_expires = token_expiry
+        
+        # Extract user data before closing session
+        user_email = user.email
+        user_username = user.username
+        
+        db.commit()
+        db.close()
+        
+        # Send password reset email (using extracted data)
+        email_sent, email_msg = send_password_reset_email(user_email, user_username, token)
+        
+        if email_sent:
+            return True, "If this email is registered, you will receive a password reset link shortly."
+        else:
+            # Even if email fails, don't reveal user existence
+            return True, "If this email is registered, you will receive a password reset link shortly."
+            
+    except Exception as e:
+        return False, f"Error processing password reset request: {str(e)}"
+
+
+def verify_password_reset_token(token):
+    """
+    Verify a password reset token and return the user.
+    
+    Args:
+        token (str): The password reset token
+        
+    Returns:
+        tuple: (valid: bool, message: str, user: User or None)
+    """
+    if not token:
+        return False, "No reset token provided", None
+    
+    try:
+        db = next(get_db())
+        
+        # Find user with this token (prefixed with PWDRESET_)
+        user = db.query(User).filter(User.email_verification_token == f"PWDRESET_{token}").first()
+        
+        if user is None:
+            db.close()
+            return False, "Invalid or expired reset link. Please request a new one.", None
+        
+        # Check if token is expired
+        if user.email_verification_expires and datetime.now(timezone.utc) > user.email_verification_expires:
+            db.close()
+            return False, "Reset link has expired. Please request a new one.", None
+        
+        # Check if user is deleted
+        if user.is_deleted:
+            db.close()
+            return False, "This account has been deactivated.", None
+        
+        db.close()
+        return True, "Token is valid", user
+    except Exception as e:
+        return False, f"Error verifying reset token: {str(e)}", None
+
+
+def reset_password_with_token(token, new_password, confirm_password):
+    """
+    Reset a user's password using a valid token.
+    
+    Args:
+        token (str): The password reset token
+        new_password (str): New password
+        confirm_password (str): Password confirmation
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    # Validation
+    if not new_password or not confirm_password:
+        return False, "Password fields are required"
+    
+    if new_password != confirm_password:
+        return False, "Passwords do not match"
+    
+    if len(new_password) < 6:
+        return False, "Password must be at least 6 characters long"
+    
+    # Verify token first
+    valid, msg, user = verify_password_reset_token(token)
+    
+    if not valid or user is None:
+        return False, msg
+    
+    try:
+        db = next(get_db())
+        
+        # Get fresh user object from this session
+        user = db.query(User).filter(User.id == user.id).first()
+        
+        if user is None:
+            db.close()
+            return False, "User not found"
+        
+        # Update password
+        user.set_password(new_password)
+        
+        # Clear the reset token
+        user.email_verification_token = None
+        user.email_verification_expires = None
+        
+        db.commit()
+        db.close()
+        
+        return True, "Password reset successful! You can now log in with your new password."
+    except Exception as e:
+        return False, f"Error resetting password: {str(e)}"
+
+
+def request_username_reminder(email):
+    """
+    Send username reminder email to the user.
+    
+    Args:
+        email (str): Email address of the user
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    from helpers.email import send_username_reminder_email
+    
+    if not email or not email.strip():
+        return False, "Email address is required"
+    
+    try:
+        db = next(get_db())
+        user = db.query(User).filter(User.email == email.strip().lower()).first()
+        
+        if user is None:
+            db.close()
+            # Don't reveal if email exists or not for security
+            return True, "If this email is registered, you will receive your username shortly."
+        
+        # Check if user is deleted
+        if user.is_deleted:
+            db.close()
+            return True, "If this email is registered, you will receive your username shortly."
+        
+        # Extract user data before closing session
+        user_email = user.email
+        user_username = user.username
+        
+        db.close()
+        
+        # Send username reminder email (using extracted data)
+        email_sent, email_msg = send_username_reminder_email(user_email, user_username)
+        
+        if email_sent:
+            return True, "If this email is registered, you will receive your username shortly."
+        else:
+            # Even if email fails, don't reveal user existence
+            return True, "If this email is registered, you will receive your username shortly."
+            
+    except Exception as e:
+        return False, f"Error processing username reminder request: {str(e)}"
+

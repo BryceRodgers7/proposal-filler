@@ -22,6 +22,9 @@ from views.card_creator import render_card_creator
 from views.kindr_swipe import render_kindr_swipe
 from views.card_browser import render_card_browser
 from views.card_like_browser import render_card_like_browser
+from views.forgot_password import render_forgot_password_page
+from views.reset_password import render_reset_password_page
+from views.forgot_username import render_forgot_username_page
 from helpers.auth import is_authenticated, is_user_deleted
 from views.login import render_login_page
 
@@ -70,15 +73,47 @@ if query_params.get("page", [None])[0] == "verify" and verification_token:
         render_verify_email_page(verification_token)
         st.stop()  # Don't render anything else
 
+# ----- CHECK FOR PASSWORD RESET PAGE -----
+# Handle password reset page (before auth check) since users won't be logged in
+# BUT skip this if user is already authenticated (they just logged in)
+if query_params.get("page", [None])[0] == "reset_password" and verification_token and not is_authenticated():
+    # Track which reset tokens we've already processed to prevent re-processing
+    if "processed_reset_tokens" not in st.session_state:
+        st.session_state.processed_reset_tokens = set()
+    
+    # If this token was already processed, skip to login
+    if verification_token in st.session_state.processed_reset_tokens:
+        # Token already processed - user is navigating back or refreshing
+        # Don't show reset page again, redirect to login
+        st.session_state.page = "login"
+        # Clear the processed tokens since we're going back to login
+        if "processed_reset_tokens" in st.session_state:
+            del st.session_state.processed_reset_tokens
+        if "validated_reset_tokens" in st.session_state:
+            del st.session_state.validated_reset_tokens
+        if "reset_password_success" in st.session_state:
+            del st.session_state.reset_password_success
+        if "reset_token_username" in st.session_state:
+            del st.session_state.reset_token_username
+        # Fall through to normal auth flow below
+    else:
+        # New token - process password reset
+        render_reset_password_page(verification_token)
+        st.stop()  # Don't render anything else
+
 # ----- AUTHENTICATION CHECK -----
 if not is_authenticated():
-    # User is not logged in - check if they want to register
+    # User is not logged in - check if they want to register or reset password
     page = st.session_state.get("page", "login")
     
     if page == "register_representative":
         render_register_representative_page()
     elif page == "register_donor":
         render_register_donor_page()
+    elif page == "forgot_password":
+        render_forgot_password_page()
+    elif page == "forgot_username":
+        render_forgot_username_page()
     else:
         # Default to login page
         render_login_page()
