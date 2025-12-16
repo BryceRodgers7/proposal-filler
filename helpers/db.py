@@ -71,6 +71,7 @@ class User(Base):
     donor_profile = relationship("DonorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     organization_cards = relationship("OrganizationCard", back_populates="user", cascade="all, delete-orphan")
     card_actions = relationship("CardAction", back_populates="user", cascade="all, delete-orphan")
+    proposal_files = relationship("ProposalFile", back_populates="user", cascade="all, delete-orphan")
     
     def set_password(self, password):
         """Hash and set the user's password."""
@@ -238,6 +239,41 @@ class CardAction(Base):
     # Relationships
     card = relationship("OrganizationCard", back_populates="card_actions")
     user = relationship("User", back_populates="card_actions")
+
+
+class ProposalFile(Base):
+    """
+    Table to store multiple proposal files for each organization.
+    Allows organizations to upload and manage multiple proposals and select
+    which one to use for AI features.
+    """
+    __tablename__ = "proposal_files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign key to user (organization representative)
+    user_id = Column(Integer, ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # File information
+    file_name = Column(String(255), nullable=False)  # Original filename
+    file_path = Column(String(500), nullable=False)  # S3 key or local path
+    file_type = Column(Text, nullable=False)  # MIME type
+    
+    # Display name for dropdown (editable by user)
+    display_name = Column(String(255), nullable=False)
+    
+    # Extracted text from the proposal (for AI features)
+    extracted_text = Column(Text, nullable=True)
+    
+    # Soft-delete flag
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User", back_populates="proposal_files")
 
 
 def init_db():

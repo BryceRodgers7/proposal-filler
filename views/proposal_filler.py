@@ -9,7 +9,7 @@ import uuid
 import streamlit as st
 import pdfplumber  
 from docx import Document  
-from helpers.db import ProposalSubmission, get_db, User
+from helpers.db import ProposalSubmission, ProposalFile, get_db, User
 from helpers.storage import upload_file_to_s3, upload_organization_image, get_s3_url
 from helpers.auth import get_current_user_id, has_account_tier, get_user_account_tier, get_current_user
 from helpers.stripe_checkout import create_checkout_session
@@ -280,78 +280,65 @@ def render_profile_page():
                 else:
                     st.warning("⚠️ Please save your profile first before uploading an image.")
     
-    # --- SECTION 2: Proposal File Upload ---
+    # --- SECTION 2: Select from Existing Proposals ---
     st.markdown("---")
-    st.subheader("📄 Proposal Document Upload")
-    st.write(
-        "Upload a proposal (PDF, DOCX, or TXT). "
-        "The app will use AI to extract key fields into a structured form you can edit."
-    )
-
-    uploaded_file = st.file_uploader("Upload proposal", type=["pdf", "docx", "txt"])
-
-    # Optional: show the raw text for debugging
-    # with st.expander("Show extracted raw text (debug)", expanded=False):
-    #     if uploaded_file is not None:
-    #         raw_text = extract_text(uploaded_file)
-    #         st.text_area("Raw extracted text", raw_text, height=200)
-    #     else:
-    #         st.info("Upload a file to see extracted text.")
-
-    # Store uploaded file info in session state
-    if uploaded_file is not None:
-        # Check if this is a new file (different from previous upload)
-        current_file_name = uploaded_file.name
-        if ("uploaded_file_info" not in st.session_state or 
-            st.session_state.uploaded_file_info.get("original_name") != current_file_name):
-            file_id = str(uuid.uuid4())
-            file_extension = os.path.splitext(uploaded_file.name)[1]
-            s3_key = f"uploads/{file_id}{file_extension}"
+    st.subheader("📂 Select Proposal")
+    
+    # Load available proposal files for this user
+    try:
+        db = next(get_db())
+        available_proposals = db.query(ProposalFile).filter(
+            ProposalFile.user_id == user_id,
+            ProposalFile.is_deleted == False
+        ).order_by(ProposalFile.created_at.desc()).all()
+        db.close()
+    except Exception as e:
+        st.error(f"Error loading proposal files: {str(e)}")
+        available_proposals = []
+    
+    if available_proposals:
+        st.write("Select a proposal from your uploaded files to use for AI extraction:")
+        
+        # Create dropdown options
+        proposal_options = {
+            f"{proposal.display_name} (uploaded {proposal.created_at.strftime('%Y-%m-%d')})": proposal.id
+            for proposal in available_proposals
+        }
+        
+        selected_proposal_label = st.selectbox(
+            "Choose a proposal",
+            options=list(proposal_options.keys()),
+            key="selected_proposal_dropdown"
+        )
+        
+        selected_proposal_id = proposal_options[selected_proposal_label]
+        
+        if selected_proposal_id:
+            # User selected an existing proposal
+            selected_proposal = next((p for p in available_proposals if p.id == selected_proposal_id), None)
             
-            # Try to upload file to S3 (if available)
-            s3_path = None
-            s3_upload_success = False
-            if s3_available:
-                try:
-                    # Read file data as bytes (getbuffer() returns memoryview, need to convert to bytes)
-                    file_buffer = uploaded_file.getbuffer()
-                    file_data = bytes(file_buffer)
-                    content_type = uploaded_file.type
-                    s3_path = upload_file_to_s3(file_data, s3_key, content_type)
-                    if s3_path:
-                        print(f"✅ File uploaded to S3: {s3_path}")
-                        s3_upload_success = True
-                        st.success(f"✅ File successfully uploaded to S3: {uploaded_file.name}")
-                    else:
-                        print(f"⚠️ Warning: Could not upload file to S3")
-                        st.warning("⚠️ Could not upload file to S3. File will be stored in memory only.")
-                except Exception as e:
-                    print(f"⚠️ Warning: Error uploading file to S3: {str(e)}")
-                    st.error(f"⚠️ Error uploading file to S3: {str(e)}")
-                    s3_path = None
-            else:
-                st.info("ℹ️ S3 storage is not available. File will be stored in memory only.")
-            
-            # Store file info in session state
-            st.session_state.uploaded_file_info = {
-                "original_name": uploaded_file.name,
-                "saved_path": s3_path or f"in_memory:{file_id}",  # S3 key or in-memory marker
-                "file_type": uploaded_file.type or file_extension[1:].lower(),
-                "file_id": file_id
-            }
-            st.session_state.extracted_text = None  # Will be set after extraction
-            # Reset form data when new file is uploaded
-            st.session_state.form_data = DEFAULT_FORM.copy()
+            if selected_proposal:
+                col_info, col_action = st.columns([3, 1])
+                
+                with col_info:
+                    st.info(f"**Selected:** {selected_proposal.display_name}")
+                    st.caption(f"File: {selected_proposal.file_name}")
+                
+                with col_action:
+                    if st.button("✨ Extract with AI", type="primary", use_container_width=True):
+                        if selected_proposal.extracted_text:
+                            with st.spinner("Extracting fields with AI..."):
+                                st.session_state.extracted_text = selected_proposal.extracted_text
+                                st.session_state.form_data = call_llm_to_structure(selected_proposal.extracted_text)
+                            st.success("Extraction complete! Scroll down to review and edit the form.")
+                            st.rerun()
+                        else:
+                            st.warning("This proposal doesn't have extracted text. Please upload a new file or re-upload this proposal with text extraction enabled.")
+    else:
+        st.info("💡 No proposals uploaded yet. Visit the **Proposal Manager** page to upload proposal files, or upload one below.")
+    
 
-    # --- Extract button ---
-    if uploaded_file is not None and st.button("Extract with AI"):
-        with st.spinner("Extracting fields with AI..."):
-            text = extract_text(uploaded_file)
-            st.session_state.extracted_text = text
-            st.session_state.form_data = call_llm_to_structure(text)
-        st.success("Extraction complete! Scroll down to review and edit the form.")
-
-    # --- SECTION 3: Structured Form ---
+    # --- SECTION 4: Structured Form ---
     st.markdown("---")
     st.subheader("📝 Structured Form (Editable)")
 
@@ -438,8 +425,6 @@ def render_profile_page():
         if st.button("💾 Save to Database", type="primary"):
             if not db_initialized:
                 st.error("⚠️ Database is not available. Please check your database configuration.")
-            elif "uploaded_file_info" not in st.session_state and "existing_submission_id" not in st.session_state:
-                st.error("Please upload a file first or have an existing profile to update.")
             else:
                 try:
                     db = next(get_db())
@@ -463,16 +448,10 @@ def render_profile_page():
                     if not existing_id or not submission:
                         # Create new submission
                         is_new_profile = True
-                        # Get file path - use S3 key or in-memory marker
-                        if "uploaded_file_info" in st.session_state:
-                            file_path = st.session_state.uploaded_file_info["saved_path"]
-                            file_name = st.session_state.uploaded_file_info["original_name"]
-                            file_type = st.session_state.uploaded_file_info["file_type"]
-                        else:
-                            # No file uploaded, use placeholder values
-                            file_path = "no_file"
-                            file_name = "manual_entry"
-                            file_type = "text/plain"
+                        # No file uploaded on this page, use placeholder values
+                        file_path = "no_file"
+                        file_name = "manual_entry"
+                        file_type = "text/plain"
                         
                         submission = ProposalSubmission(
                             user_id=user_id,
@@ -494,12 +473,7 @@ def render_profile_page():
                         )
                         db.add(submission)
                     else:
-                        # Update existing submission fields
-                        if "uploaded_file_info" in st.session_state:
-                            submission.file_name = st.session_state.uploaded_file_info["original_name"]
-                            submission.file_path = st.session_state.uploaded_file_info["saved_path"]
-                            submission.file_type = st.session_state.uploaded_file_info["file_type"]
-                        
+                        # Update existing submission fields (don't modify file info)
                         submission.full_organization_name = fd.get("full_organization_name", "")
                         submission.legal_designation = fd.get("legal_designation", "")
                         submission.mission_statement = fd.get("mission_statement", "")

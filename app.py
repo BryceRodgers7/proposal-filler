@@ -25,6 +25,7 @@ from views.card_like_browser import render_card_like_browser
 from views.forgot_password import render_forgot_password_page
 from views.reset_password import render_reset_password_page
 from views.forgot_username import render_forgot_username_page
+from views.proposal_manager import render_proposal_manager
 from helpers.auth import is_authenticated, is_user_deleted
 from views.login import render_login_page
 
@@ -163,6 +164,8 @@ else:
             render_card_browser()
         elif current_page == "cardlikebrowser":
             render_card_like_browser()
+        elif current_page == "proposalmanager":
+            render_proposal_manager()
         else:
             # Default based on user type
             user_type = st.session_state.get("user_type", "representative")

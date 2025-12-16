@@ -3,7 +3,7 @@ Card Creator page for organization representatives.
 Allows creating, editing, and managing up to 3 organization cards with AI generation.
 """
 import streamlit as st
-from helpers.db import get_db, OrganizationCard, ProposalSubmission
+from helpers.db import get_db, OrganizationCard, ProposalSubmission, ProposalFile
 from helpers.auth import get_current_user_id, get_current_user_type
 from helpers.storage import get_s3_url, process_image, upload_file_to_s3
 from helpers.openai_client import generate_organization_card
@@ -39,21 +39,18 @@ def render_card_creator():
                 del st.session_state.ai_generated_subtitle
             del st.session_state.ai_generated_user_id
     
-    # Check if organization has a proposal (required for AI generation)
+    # Load existing cards and available proposals
     db = None
     try:
         db = next(get_db())
-        proposal = db.query(ProposalSubmission).filter(
-            ProposalSubmission.user_id == user_id,
-            ProposalSubmission.is_deleted == False
-        ).first()
         
-        # Check if proposal has meaningful content
-        has_complete_proposal = (
-            proposal is not None 
-            and proposal.full_organization_name 
-            and proposal.full_organization_name.strip()
-        )
+        # Load proposal files (new system)
+        proposal_files = db.query(ProposalFile).filter(
+            ProposalFile.user_id == user_id,
+            ProposalFile.is_deleted == False
+        ).order_by(ProposalFile.created_at.desc()).all()
+
+        has_proposals = len(proposal_files) > 0
         
         # Load existing cards
         existing_cards = db.query(OrganizationCard).filter(
@@ -77,7 +74,7 @@ def render_card_creator():
     with col1:
         st.info(f"📊 You have created **{card_count} of 3** cards")
     with col2:
-        if not has_complete_proposal:
+        if not has_proposals:
             st.warning("⚠️ Upload a proposal to enable AI generation")
     
     # Show existing cards
@@ -152,6 +149,24 @@ def render_card_creator():
                     with st.form(key=f"edit_form_{card.id}"):
                         edit_title = st.text_input("Title*", value=card.title, max_chars=100)
                         edit_subtitle = st.text_area("Subtitle", value=card.subtitle or "", max_chars=300)
+                        
+                        proposal_options = {}
+                        for pf in proposal_files:
+                            if pf.extracted_text:  # Only show proposals with extracted text
+                                label = f"{pf.display_name} (uploaded {pf.created_at.strftime('%Y-%m-%d')})"
+                                proposal_options[label] = ("file", pf.id)
+
+                        if proposal_options:
+                            selected_proposal_label = st.selectbox(
+                                "Select proposal to use for AI generation",
+                                options=list(proposal_options.keys()),
+                                key=f"card_creator_proposal_selector_edit_{card.id}"
+                            )
+                            
+                            selected_proposal_type, selected_proposal_id = proposal_options[selected_proposal_label]
+                        else:
+                            st.info("💡 No proposals uploaded yet. Visit the **Proposal Manager** page to upload proposal files.")
+                            
                         edit_image = st.file_uploader(
                             "Upload new image (optional)", 
                             type=["jpg", "jpeg", "png"],
@@ -213,39 +228,87 @@ def render_card_creator():
     else:
         st.subheader("Create New Card")
         
-        # AI Generation button
-        if has_complete_proposal:
-            if st.button("✨ Generate Card with AI", use_container_width=True, type="primary"):
-                with st.spinner("Generating card with AI..."):
-                    try:
-                        db = next(get_db())
-                        proposal = db.query(ProposalSubmission).filter(
-                            ProposalSubmission.user_id == user_id,
-                            ProposalSubmission.is_deleted == False
-                        ).first()
-                        
-                        existing_cards = db.query(OrganizationCard).filter(
-                            OrganizationCard.user_id == user_id,
-                            OrganizationCard.is_deleted == False
-                        ).all()
-                        
-                        result = generate_organization_card(proposal, existing_cards)
-                        
-                        if result:
-                            st.session_state["ai_generated_title"] = result.get("title", "")
-                            st.session_state["ai_generated_subtitle"] = result.get("subtitle", "")
-                            st.session_state["ai_generated_user_id"] = user_id
-                            st.success("✅ Card generated! Review and edit below before saving.")
-                            st.rerun()
-                        else:
-                            st.error("Failed to generate card. Please try again.")
-                    except Exception as e:
-                        st.error(f"Error generating card: {str(e)}")
-                    finally:
-                        if db:
-                            db.close()
+        # AI Generation section
+        if has_proposals:
+            # Show proposal selector
+            st.markdown("#### 🤖 AI Card Generation")
+            
+            # Build proposal options
+            proposal_options = {}
+            
+            # Add new proposal files
+            for pf in proposal_files:
+                if pf.extracted_text:  # Only show proposals with extracted text
+                    label = f"{pf.display_name} (uploaded {pf.created_at.strftime('%Y-%m-%d')})"
+                    proposal_options[label] = ("file", pf.id)
+            
+            if proposal_options:
+                selected_proposal_label = st.selectbox(
+                    "Select proposal to use for AI generation",
+                    options=list(proposal_options.keys()),
+                    key="card_creator_proposal_selector"
+                )
+                
+                selected_proposal_type, selected_proposal_id = proposal_options[selected_proposal_label]
+                
+                if st.button("✨ Generate Card with AI", use_container_width=True, type="primary"):
+                    with st.spinner("Generating card with AI..."):
+                        try:
+                            db = next(get_db())
+                            
+                            # Get the proposal to use
+                            if selected_proposal_type == "file":
+                                # Use new proposal file
+                                proposal_file = db.query(ProposalFile).filter(
+                                    ProposalFile.id == selected_proposal_id
+                                ).first()
+                                
+                                if proposal_file and proposal_file.extracted_text:
+                                    # Create a mock proposal object for compatibility with generate_organization_card
+                                    class MockProposal:
+                                        def __init__(self, pf):
+                                            self.extracted_text = pf.extracted_text
+                                            self.full_organization_name = pf.display_name
+                                            self.mission_statement = ""
+                                    
+                                    proposal = MockProposal(proposal_file)
+                                else:
+                                    st.error("Selected proposal file not found or has no extracted text")
+                                    proposal = None
+                            else:
+                                # Use legacy proposal
+                                proposal = db.query(ProposalSubmission).filter(
+                                    ProposalSubmission.user_id == user_id,
+                                    ProposalSubmission.is_deleted == False
+                                ).first()
+                            
+                            if proposal:
+                                existing_cards = db.query(OrganizationCard).filter(
+                                    OrganizationCard.user_id == user_id,
+                                    OrganizationCard.is_deleted == False
+                                ).all()
+                                
+                                result = generate_organization_card(proposal, existing_cards)
+                                
+                                if result:
+                                    st.session_state["ai_generated_title"] = result.get("title", "")
+                                    st.session_state["ai_generated_subtitle"] = result.get("subtitle", "")
+                                    st.session_state["ai_generated_user_id"] = user_id
+                                    st.success("✅ Card generated! Review and edit below before saving.")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to generate card. Please try again.")
+                            else:
+                                st.error("Could not load selected proposal")
+                        except Exception as e:
+                            st.error(f"Error generating card: {str(e)}")
+                        finally:
+                            if db:
+                                db.close()
+            else:
+                st.info("💡 No proposals with extracted text available. Upload a proposal in the Proposal Manager.")
         else:
-            st.info("💡 Upload your organization profile first to enable AI card generation")
+            st.info("💡 Upload a proposal in the Proposal Manager to enable AI card generation")
         
         st.markdown("### Manual Card Creation")
         

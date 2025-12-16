@@ -170,10 +170,11 @@ def render_sidebar():
         # Set default page for admins
         default_page = "profilebrowser"
     elif user_type == "representative":
-        # Representatives see: Organization Profile, Card Creator, Account Details, Premium Profile Browser (if premium)
+        # Representatives see: Organization Profile, Card Creator, Proposal Manager, Account Details, Premium Profile Browser (if premium)
         pages = {
             "👤 Organization Profile": "profile",
             "🎴 Card Creator": "cardcreator",
+            "📂 Proposal Manager": "proposalmanager",
             "⚙️ Account Details": "accountdetails"
         }
         
