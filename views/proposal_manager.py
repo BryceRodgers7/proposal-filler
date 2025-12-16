@@ -8,51 +8,11 @@ import streamlit as st
 import pdfplumber
 import io
 from docx import Document
-from helpers.db import get_db, ProposalFile
+from sqlalchemy.orm import joinedload
+from helpers.db import get_db, ProposalFile, FileExtraction
 from helpers.auth import get_current_user_id, get_current_user_type
 from helpers.storage import upload_file_to_s3, is_s3_available
-
-
-def extract_text_from_pdf(file) -> str:
-    """Extract text from a PDF file."""
-    with pdfplumber.open(file) as pdf:
-        texts = [(page.extract_text() or "") for page in pdf.pages]
-    return "\n\n".join(texts)
-
-
-def extract_text_from_docx(file) -> str:
-    """Extract text from a DOCX file."""
-    data = file.read()
-    file.seek(0)
-    mem_file = io.BytesIO(data)
-    doc = Document(mem_file)
-    return "\n".join(p.text for p in doc.paragraphs)
-
-
-def extract_text(uploaded_file) -> str:
-    """Extract text from an uploaded file (PDF, DOCX, or TXT)."""
-    if uploaded_file is None:
-        return ""
-
-    file_type = uploaded_file.type or ""
-    file_name = uploaded_file.name.lower()
-
-    # PDF
-    if "pdf" in file_type or file_name.endswith(".pdf"):
-        return extract_text_from_pdf(uploaded_file)
-
-    # DOCX
-    if (
-        "word" in file_type
-        or file_name.endswith(".docx")
-        or file_name.endswith(".doc")
-    ):
-        return extract_text_from_docx(uploaded_file)
-
-    # Fallback: assume text
-    raw_bytes = uploaded_file.read()
-    uploaded_file.seek(0)
-    return raw_bytes.decode("utf-8", errors="ignore")
+from helpers.text_extractor import extract_text
 
 
 def render_proposal_manager():
@@ -81,7 +41,9 @@ def render_proposal_manager():
     db = None
     try:
         db = next(get_db())
-        proposal_files = db.query(ProposalFile).filter(
+        proposal_files = db.query(ProposalFile).options(
+            joinedload(ProposalFile.file_extraction)
+        ).filter(
             ProposalFile.user_id == user_id,
             ProposalFile.is_deleted == False
         ).order_by(ProposalFile.created_at.desc()).all()
@@ -115,10 +77,10 @@ def render_proposal_manager():
                     st.markdown(f"**File Name:** {proposal_file.file_name}")
                     st.markdown(f"**File Type:** {proposal_file.file_type}")
                     st.caption(f"Uploaded: {proposal_file.created_at.strftime('%Y-%m-%d %H:%M')}")
-                    if proposal_file.extracted_text:
+                    if proposal_file.file_extraction and proposal_file.file_extraction.extracted_text:
                         st.text_area(
                             "Extracted text preview",
-                            value=proposal_file.extracted_text[:2000] + ("..." if len(proposal_file.extracted_text) > 2000 else ""),
+                            value=proposal_file.file_extraction.extracted_text[:2000] + ("..." if len(proposal_file.file_extraction.extracted_text) > 2000 else ""),
                             height=200,
                             disabled=True,
                             key=f"text_preview_{proposal_file.id}"
@@ -277,11 +239,20 @@ def render_proposal_manager():
                             file_name=uploaded_file.name,
                             file_path=s3_path,
                             file_type=uploaded_file.type or file_extension[1:].lower(),
-                            display_name=display_name.strip(),
-                            extracted_text=extracted_text
+                            display_name=display_name.strip()
                         )
                         
                         db.add(new_proposal_file)
+                        db.flush()  # Get the proposal_file ID
+                        
+                        # Create file extraction if text was extracted
+                        if extracted_text:
+                            new_file_extraction = FileExtraction(
+                                proposal_file_id=new_proposal_file.id,
+                                extracted_text=extracted_text
+                            )
+                            db.add(new_file_extraction)
+                        
                         db.commit()
                         db.close()
                         

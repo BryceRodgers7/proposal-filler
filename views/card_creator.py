@@ -3,6 +3,7 @@ Card Creator page for organization representatives.
 Allows creating, editing, and managing up to 3 organization cards with AI generation.
 """
 import streamlit as st
+from sqlalchemy.orm import joinedload
 from helpers.db import get_db, OrganizationCard, ProposalSubmission, ProposalFile
 from helpers.auth import get_current_user_id, get_current_user_type
 from helpers.storage import get_s3_url, process_image, upload_file_to_s3
@@ -45,7 +46,9 @@ def render_card_creator():
         db = next(get_db())
         
         # Load proposal files (new system)
-        proposal_files = db.query(ProposalFile).filter(
+        proposal_files = db.query(ProposalFile).options(
+            joinedload(ProposalFile.file_extraction)
+        ).filter(
             ProposalFile.user_id == user_id,
             ProposalFile.is_deleted == False
         ).order_by(ProposalFile.created_at.desc()).all()
@@ -152,7 +155,7 @@ def render_card_creator():
                         
                         proposal_options = {}
                         for pf in proposal_files:
-                            if pf.extracted_text:  # Only show proposals with extracted text
+                            if pf.file_extraction and pf.file_extraction.extracted_text:  # Only show proposals with extracted text
                                 label = f"{pf.display_name} (uploaded {pf.created_at.strftime('%Y-%m-%d')})"
                                 proposal_options[label] = ("file", pf.id)
 
@@ -238,7 +241,7 @@ def render_card_creator():
             
             # Add new proposal files
             for pf in proposal_files:
-                if pf.extracted_text:  # Only show proposals with extracted text
+                if pf.file_extraction and pf.file_extraction.extracted_text:  # Only show proposals with extracted text
                     label = f"{pf.display_name} (uploaded {pf.created_at.strftime('%Y-%m-%d')})"
                     proposal_options[label] = ("file", pf.id)
             
@@ -259,17 +262,24 @@ def render_card_creator():
                             # Get the proposal to use
                             if selected_proposal_type == "file":
                                 # Use new proposal file
-                                proposal_file = db.query(ProposalFile).filter(
+                                proposal_file = db.query(ProposalFile).options(
+                                    joinedload(ProposalFile.file_extraction)
+                                ).filter(
                                     ProposalFile.id == selected_proposal_id
                                 ).first()
                                 
-                                if proposal_file and proposal_file.extracted_text:
+                                if proposal_file and proposal_file.file_extraction and proposal_file.file_extraction.extracted_text:
                                     # Create a mock proposal object for compatibility with generate_organization_card
                                     class MockProposal:
                                         def __init__(self, pf):
-                                            self.extracted_text = pf.extracted_text
+                                            self.extracted_text = pf.file_extraction.extracted_text
                                             self.full_organization_name = pf.display_name
                                             self.mission_statement = ""
+                                            self.what_we_do_in_one_sentence = ""
+                                            self.biggest_accomplishment = ""
+                                            self.primary_cause_area = []
+                                            self.populations = []
+                                            self.location_served = ""
                                     
                                     proposal = MockProposal(proposal_file)
                                 else:

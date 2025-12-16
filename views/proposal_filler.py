@@ -9,6 +9,7 @@ import uuid
 import streamlit as st
 import pdfplumber  
 from docx import Document  
+from sqlalchemy.orm import joinedload
 from helpers.db import ProposalSubmission, ProposalFile, get_db, User
 from helpers.storage import upload_file_to_s3, upload_organization_image, get_s3_url
 from helpers.auth import get_current_user_id, has_account_tier, get_user_account_tier, get_current_user
@@ -22,7 +23,6 @@ from helpers.openai_client import (
     DEFAULT_FORM
 )
 import traceback
-
 
 def is_streamlit_cloud():
     """
@@ -43,49 +43,6 @@ def is_streamlit_cloud():
     except:
         pass
     return False
-
-
-
-# ----- FILE → TEXT HELPERS -----
-def extract_text_from_pdf(file) -> str:
-    # file is a BytesIO-like object from Streamlit
-    with pdfplumber.open(file) as pdf:
-        texts = [(page.extract_text() or "") for page in pdf.pages]
-    return "\n\n".join(texts)
-
-
-def extract_text_from_docx(file) -> str:
-    # streamlit gives us a SpooledTemporaryFile; wrap for python-docx
-    data = file.read()
-    file.seek(0)
-    mem_file = io.BytesIO(data)
-    doc = Document(mem_file)
-    return "\n".join(p.text for p in doc.paragraphs)
-
-
-def extract_text(uploaded_file) -> str:
-    if uploaded_file is None:
-        return ""
-
-    file_type = uploaded_file.type or ""
-    file_name = uploaded_file.name.lower()
-
-    # PDF
-    if "pdf" in file_type or file_name.endswith(".pdf"):
-        return extract_text_from_pdf(uploaded_file)
-
-    # DOCX
-    if (
-        "word" in file_type
-        or file_name.endswith(".docx")
-        or file_name.endswith(".doc")
-    ):
-        return extract_text_from_docx(uploaded_file)
-
-    # Fallback: assume text
-    raw_bytes = uploaded_file.read()
-    uploaded_file.seek(0)
-    return raw_bytes.decode("utf-8", errors="ignore")
 
 
 def render_profile_page():
@@ -287,7 +244,9 @@ def render_profile_page():
     # Load available proposal files for this user
     try:
         db = next(get_db())
-        available_proposals = db.query(ProposalFile).filter(
+        available_proposals = db.query(ProposalFile).options(
+            joinedload(ProposalFile.file_extraction)
+        ).filter(
             ProposalFile.user_id == user_id,
             ProposalFile.is_deleted == False
         ).order_by(ProposalFile.created_at.desc()).all()
@@ -326,16 +285,16 @@ def render_profile_page():
                 
                 with col_action:
                     if st.button("✨ Extract with AI", type="primary", use_container_width=True):
-                        if selected_proposal.extracted_text:
+                        if selected_proposal.file_extraction and selected_proposal.file_extraction.extracted_text:
                             with st.spinner("Extracting fields with AI..."):
-                                st.session_state.extracted_text = selected_proposal.extracted_text
-                                st.session_state.form_data = call_llm_to_structure(selected_proposal.extracted_text)
+                                st.session_state.extracted_text = selected_proposal.file_extraction.extracted_text
+                                st.session_state.form_data = call_llm_to_structure(selected_proposal.file_extraction.extracted_text)
                             st.success("Extraction complete! Scroll down to review and edit the form.")
                             st.rerun()
                         else:
                             st.warning("This proposal doesn't have extracted text. Please upload a new file or re-upload this proposal with text extraction enabled.")
     else:
-        st.info("💡 No proposals uploaded yet. Visit the **Proposal Manager** page to upload proposal files, or upload one below.")
+        st.info("💡 No proposals uploaded yet. Visit the **Proposal Manager** page to upload proposal files.")
     
 
     # --- SECTION 4: Structured Form ---
@@ -344,7 +303,7 @@ def render_profile_page():
 
     fd = st.session_state.form_data
 
-    col1, col2 = st.columns(2)
+    col1, = st.columns(1)
     with col1:
         fd["full_organization_name"] = st.text_input("Full organization name", value=fd.get("full_organization_name", ""))
         fd["mission_statement"] = st.text_input("Mission statement", value=fd.get("mission_statement", ""))
@@ -419,7 +378,7 @@ def render_profile_page():
     # --- Save to Database button ---
     st.markdown("### Save & Export")
 
-    col1, col2 = st.columns(2)
+    col1, = st.columns(1)
 
     with col1:
         if st.button("💾 Save to Database", type="primary"):
@@ -536,15 +495,6 @@ def render_profile_page():
                     db.rollback()
                 finally:
                     db.close()
-
-    # with col2:
-    #     download_json = json.dumps(st.session_state.form_data, indent=2)
-    #     st.download_button(
-    #         label="📥 Download as JSON",
-    #         data=download_json,
-    #         file_name="structured_proposal.json",
-    #         mime="application/json",
-    #     )
 
         # Show last saved ID if available
         if "last_saved_id" in st.session_state:

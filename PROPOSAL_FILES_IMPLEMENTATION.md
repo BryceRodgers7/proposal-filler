@@ -15,15 +15,26 @@ Created a new table to store multiple proposal files per organization:
 - `file_path`: S3 key or local path
 - `file_type`: MIME type
 - `display_name`: User-friendly name shown in dropdowns (editable)
-- `extracted_text`: Text extracted from the proposal for AI features
 - `is_deleted`: Soft delete flag
 - `created_at`, `updated_at`: Timestamps
 
 **Migration File**: `migrations/004_add_proposal_files.sql`
 
+#### New Table: `file_extractions` (Added in migration 005)
+Created a separate table to store extracted text with metadata:
+- `id`: Primary key
+- `proposal_file_id`: Foreign key to proposal_files
+- `extracted_text`: Text extracted from the proposal for AI features
+- `char_count`: Automatically calculated character count (generated column)
+- `extracted_at`: Timestamp when extraction was performed
+
+**Migration File**: `migrations/005_add_file_extractions.sql`
+
 #### Database Model Updates
 - Added `ProposalFile` model to `helpers/db.py`
+- Added `FileExtraction` model to `helpers/db.py` (migration 005)
 - Added `proposal_files` relationship to the `User` model
+- Added `file_extraction` relationship to the `ProposalFile` model
 
 ### 2. New Page: Proposal Manager
 

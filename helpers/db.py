@@ -262,9 +262,6 @@ class ProposalFile(Base):
     # Display name for dropdown (editable by user)
     display_name = Column(String(255), nullable=False)
     
-    # Extracted text from the proposal (for AI features)
-    extracted_text = Column(Text, nullable=True)
-    
     # Soft-delete flag
     is_deleted = Column(Boolean, default=False, nullable=False)
     
@@ -274,6 +271,32 @@ class ProposalFile(Base):
     
     # Relationships
     user = relationship("User", back_populates="proposal_files")
+    file_extraction = relationship("FileExtraction", back_populates="proposal_file", uselist=False, cascade="all, delete-orphan")
+
+
+class FileExtraction(Base):
+    """
+    Table to store extracted text from proposal files.
+    Separates extracted text into its own table with metadata.
+    """
+    __tablename__ = "file_extractions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign key to proposal file
+    proposal_file_id = Column(Integer, ForeignKey("proposal_files.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Extracted text content
+    extracted_text = Column(Text, nullable=False)
+    
+    # Note: char_count is a generated column in the database (calculated automatically)
+    # We don't define it here since it's a STORED GENERATED column
+    
+    # Timestamp when extraction was performed
+    extracted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    proposal_file = relationship("ProposalFile", back_populates="file_extraction")
 
 
 def init_db():

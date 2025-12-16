@@ -262,34 +262,47 @@ def generate_organization_card(proposal, existing_cards):
         return None
     
     # Build context from proposal
+    # Prioritize extracted_text if available (from ProposalFiles), otherwise use structured fields
     context_parts = []
     
-    if proposal.full_organization_name:
-        context_parts.append(f"Organization Name: {proposal.full_organization_name}")
-    
-    if proposal.mission_statement:
-        context_parts.append(f"Mission: {proposal.mission_statement}")
-    
-    if proposal.what_we_do_in_one_sentence:
-        context_parts.append(f"What We Do: {proposal.what_we_do_in_one_sentence}")
-    
-    if proposal.biggest_accomplishment:
-        context_parts.append(f"Biggest Accomplishment: {proposal.biggest_accomplishment}")
-    
-    if proposal.primary_cause_area:
-        if isinstance(proposal.primary_cause_area, list):
-            context_parts.append(f"Cause Areas: {', '.join(proposal.primary_cause_area)}")
-        else:
-            context_parts.append(f"Cause Areas: {proposal.primary_cause_area}")
-    
-    if proposal.populations:
-        if isinstance(proposal.populations, list):
-            context_parts.append(f"Populations Served: {', '.join(proposal.populations)}")
-        else:
-            context_parts.append(f"Populations Served: {proposal.populations}")
-    
-    if proposal.location_served:
-        context_parts.append(f"Location: {proposal.location_served}")
+    # Check if this proposal has extracted_text (from ProposalFile)
+    if hasattr(proposal, 'extracted_text') and proposal.extracted_text:
+        # Use the full extracted text as the primary context
+        context_parts.append("=== PROPOSAL DOCUMENT ===")
+        context_parts.append(proposal.extracted_text)
+        context_parts.append("=== END PROPOSAL ===")
+        
+        # Also include organization name if available
+        if hasattr(proposal, 'full_organization_name') and proposal.full_organization_name:
+            context_parts.append(f"\nOrganization Name: {proposal.full_organization_name}")
+    else:
+        # Fall back to structured fields (legacy ProposalSubmission)
+        if proposal.full_organization_name:
+            context_parts.append(f"Organization Name: {proposal.full_organization_name}")
+        
+        if proposal.mission_statement:
+            context_parts.append(f"Mission: {proposal.mission_statement}")
+        
+        if proposal.what_we_do_in_one_sentence:
+            context_parts.append(f"What We Do: {proposal.what_we_do_in_one_sentence}")
+        
+        if proposal.biggest_accomplishment:
+            context_parts.append(f"Biggest Accomplishment: {proposal.biggest_accomplishment}")
+        
+        if proposal.primary_cause_area:
+            if isinstance(proposal.primary_cause_area, list):
+                context_parts.append(f"Cause Areas: {', '.join(proposal.primary_cause_area)}")
+            else:
+                context_parts.append(f"Cause Areas: {proposal.primary_cause_area}")
+        
+        if proposal.populations:
+            if isinstance(proposal.populations, list):
+                context_parts.append(f"Populations Served: {', '.join(proposal.populations)}")
+            else:
+                context_parts.append(f"Populations Served: {proposal.populations}")
+        
+        if proposal.location_served:
+            context_parts.append(f"Location: {proposal.location_served}")
     
     context_text = "\n".join(context_parts)
     
@@ -308,6 +321,9 @@ def generate_organization_card(proposal, existing_cards):
     Your task is to create a compelling organization card that will appeal to potential donors.
     The card should highlight a specific accomplishment, impact, or unique aspect of the organization.
     
+    You will receive either a full proposal document or structured organization information.
+    Extract the most compelling details to create an engaging card.
+    
     IMPORTANT: Create a card that is DIFFERENT from any existing cards for this organization.
     
     Existing cards for this organization:
@@ -318,10 +334,11 @@ def generate_organization_card(proposal, existing_cards):
     - Subtitle: Provide specific details or context (max 300 characters). Should tell a story or show concrete results.
     - Focus on accomplishments, impact metrics, beneficiaries helped, or unique strengths
     - Make it emotionally engaging but authentic
+    - Extract specific numbers, stories, or outcomes from the proposal if available
     - Do NOT repeat content from existing cards
-    - If this is the first card, focus on the organization's biggest accomplishment
-    - If this is the second card, focus on a different aspect (e.g., populations served, mission impact)
-    - If this is the third card, highlight another unique angle (e.g., community reach, innovation)
+    - If this is the first card, focus on the organization's biggest accomplishment or primary mission
+    - If this is the second card, focus on a different aspect (e.g., populations served, mission impact, specific programs)
+    - If this is the third card, highlight another unique angle (e.g., community reach, innovation, scale of impact)
     
     Return ONLY a JSON object with these keys: "title" and "subtitle"
 
