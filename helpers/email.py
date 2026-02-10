@@ -7,6 +7,7 @@ import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import streamlit as st
+import os
 
 
 def get_smtp_config():
@@ -18,11 +19,11 @@ def get_smtp_config():
     """
     try:
         return {
-            "host": st.secrets.get("GMAIL_SMTP_HOST", "smtp.gmail.com"),
-            "port": int(st.secrets.get("GMAIL_SMTP_PORT", 465)),
-            "user": st.secrets.get("GMAIL_SMTP_USER"),
-            "password": st.secrets.get("GMAIL_SMTP_PASS"),
-            "from_email": st.secrets.get("GMAIL_EMAIL_FROM"),
+            "host": os.getenv("GMAIL_SMTP_HOST", "smtp.gmail.com"),
+            "port": int(os.getenv("GMAIL_SMTP_PORT", 465)),
+            "user": os.getenv("GMAIL_SMTP_USER"),
+            "password": os.getenv("GMAIL_SMTP_PASS"),
+            "from_email": os.getenv("GMAIL_EMAIL_FROM"),
         }
     except Exception:
         return None
@@ -36,7 +37,7 @@ def get_app_url():
         str: The application base URL
     """
     # Try to get from secrets, otherwise use a sensible default
-    return st.secrets.get("APP_URL", "https://nonprofittinder.streamlit.app")
+    return "https://nonprofittinder.streamlit.app"
 
 
 def send_verification_email(to_email: str, username: str, token: str) -> tuple[bool, str]:

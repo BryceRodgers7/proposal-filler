@@ -9,7 +9,8 @@ from sqlalchemy import create_engine, Column, String, Integer, Text, DateTime, J
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
-DB_URL = st.secrets["DATABASE_URL"]  # Supabase Postgres URL
+# this should be an environment variable
+DB_URL = os.getenv("DATABASE_URL")  # Supabase Postgres URL
 
 engine = create_engine(DB_URL, echo=False, future=True)
 

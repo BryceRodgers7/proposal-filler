@@ -2,7 +2,10 @@ import stripe
 import streamlit as st
 import os
 
-stripe.api_key = st.secrets["STRIPE_SECRET_KEY"]
+# this should be an environment variable
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+
+stripe.api_key = STRIPE_SECRET_KEY
 
 
 def get_app_url():
