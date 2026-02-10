@@ -18,11 +18,11 @@ def get_smtp_config():
     """
     try:
         return {
-            "host": st.secrets.get("SMTP_HOST", "smtp.gmail.com"),
-            "port": int(st.secrets.get("SMTP_PORT", 465)),
-            "user": st.secrets.get("SMTP_USER"),
-            "password": st.secrets.get("SMTP_PASS"),
-            "from_email": st.secrets.get("EMAIL_FROM"),
+            "host": st.secrets.get("GMAIL_SMTP_HOST", "smtp.gmail.com"),
+            "port": int(st.secrets.get("GMAIL_SMTP_PORT", 465)),
+            "user": st.secrets.get("GMAIL_SMTP_USER"),
+            "password": st.secrets.get("GMAIL_SMTP_PASS"),
+            "from_email": st.secrets.get("GMAIL_EMAIL_FROM"),
         }
     except Exception:
         return None
